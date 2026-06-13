@@ -32,6 +32,7 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.DataFormat;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 import org.Open_code_Studio.jmcl.setting.ConfigHolder;
 import org.Open_code_Studio.jmcl.setting.SambaException;
@@ -39,6 +40,7 @@ import org.Open_code_Studio.jmcl.task.AsyncTaskExecutor;
 import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
+import org.Open_code_Studio.jmcl.ui.MacOSNativeUtils;
 import org.Open_code_Studio.jmcl.theme.Themes;
 import org.Open_code_Studio.jmcl.upgrade.UpdateChecker;
 import org.Open_code_Studio.jmcl.upgrade.UpdateHandler;
@@ -136,8 +138,18 @@ public final class Launcher extends Application {
                 Platform.setImplicitExit(false);
                 Controllers.initialize(primaryStage);
 
-                if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS)
+                if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
                     Themes.applyNativeDarkMode(primaryStage);
+
+                    // Apply rounded corners once the window is shown
+                    primaryStage.addEventFilter(WindowEvent.WINDOW_SHOWN, new javafx.event.EventHandler<WindowEvent>() {
+                        @Override
+                        public void handle(WindowEvent event) {
+                            primaryStage.removeEventFilter(WindowEvent.WINDOW_SHOWN, this);
+                            MacOSNativeUtils.applyRoundedCorners(primaryStage, 12);
+                        }
+                    });
+                }
 
                 UpdateChecker.init();
 

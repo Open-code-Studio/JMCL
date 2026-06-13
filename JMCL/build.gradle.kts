@@ -40,9 +40,9 @@ if (buildNumber != null) {
 } else {
     val shortCommit = System.getenv("GITHUB_SHA")?.lowercase()?.substring(0, 7)
     version = if (shortCommit.isNullOrBlank()) {
-        "DEV$versionRoot"
+        versionRoot
     } else {
-        "DEV$versionRoot-$shortCommit"
+        "$versionRoot-$shortCommit"
     }
 }
 

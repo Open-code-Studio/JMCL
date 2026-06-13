@@ -1,0 +1,49 @@
+JMCL (Java Virtual Machine Minecraft Launcher)
+License Agreement
+
+Copyright (c) Open Code Studio and contributors.
+
+This software is provided under the terms of this License Agreement.
+Please read this agreement carefully before using this software.
+
+TERMS AND CONDITIONS
+
+1. User Obligations
+   1.1 Users shall provide their own internet access equipment.
+   1.2 Users shall bear all internet access and telecommunication fees.
+   1.3 Users are solely responsible for all actions and consequences arising from their use of the Software.
+   1.4 Users shall comply with all applicable laws and regulations.
+
+2. Intellectual Property
+   2.1 The Software, including all copyrights, patents, and other intellectual property rights, is owned by the Developer or designated copyright holders.
+   2.2 Third-party services used by the Software are owned by their respective copyright holders.
+   2.3 This Software is open-source. Users shall comply with the Software's open-source license.
+
+3. Disclaimer of Warranty
+   3.1 The Software is provided "AS IS", without warranty of any kind, express or implied.
+   3.2 The Developer does not guarantee that the Software will meet your requirements or be uninterrupted or error-free.
+   3.3 The Developer shall not be liable for any damages arising from the use of the Software.
+
+4. Limitation of Liability
+   4.1 In no event shall the Developer be liable for any indirect, incidental, special, or consequential damages.
+   4.2 The Developer's total liability shall not exceed the amount paid by you for the Software.
+
+5. Third-Party Services
+   5.1 The Software may include third-party services. The Developer is not responsible for these third-party services.
+   5.2 Any disputes arising from third-party services shall be resolved with the respective service providers.
+
+6. Termination
+   6.1 The Developer reserves the right to terminate or suspend access to the Software at any time, without prior notice.
+   6.2 Upon termination, your right to use the Software will immediately cease.
+
+7. Governing Law
+   7.1 This Agreement shall be governed by the laws of the People's Republic of China.
+   7.2 Any disputes arising from this Agreement shall be resolved through friendly negotiation.
+
+8. Amendments
+   8.1 The Developer reserves the right to amend this Agreement at any time.
+   8.2 Continued use of the Software after amendments constitutes acceptance of the revised terms.
+
+By using this software, you acknowledge that you have read, understood, and agree to be bound by all terms of this License Agreement.
+
+Open Code Studio

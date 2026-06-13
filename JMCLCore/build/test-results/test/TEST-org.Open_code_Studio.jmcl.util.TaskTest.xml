@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.TaskTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:11.804Z" hostname="cangcangdeMacBook-Air.local" time="7.453">
+  <properties/>
+  <testcase name="expectErrorUncaught()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="0.003"/>
+  <testcase name="testCompletableFutureCancellation()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="4.113"/>
+  <testcase name="testThenAccept()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="0.001"/>
+  <testcase name="testCancellation()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="3.207"/>
+  <testcase name="testWithCompose()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="0.001"/>
+  <testcase name="testWhenComplete()" classname="org.Open_code_Studio.jmcl.util.TaskTest" time="0.0"/>
+  <system-out><![CDATA[Main thread start waiting
+Sleep
+Start
+Cancel
+Successfully cancelled
+End
+Main thread start waiting
+Cancel
+]]></system-out>
+  <system-err><![CDATA[6月 13, 2026 11:19:15 上午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @5a7005d'
+]]></system-err>
+</testsuite>

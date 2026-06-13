@@ -41,6 +41,7 @@ import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -154,8 +155,20 @@ public final class UpdateHandler {
                             // Ignore
                         }
 
-                        requestUpdate(downloaded, getCurrentLocation());
-                        EntryPoint.exit(0);
+                        if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS && isRunningInAppBundle()) {
+                            // macOS: directly replace the JAR inside .app bundle, then restart via "open"
+                            Path currentJar = getCurrentLocation();
+                            LOG.info("macOS update: replacing JAR at " + currentJar);
+                            Files.copy(downloaded, currentJar, StandardCopyOption.REPLACE_EXISTING);
+                            LOG.info("JAR replaced successfully, restarting .app bundle");
+
+                            Path appBundle = findAppBundle(currentJar);
+                            new ProcessBuilder("open", appBundle.toString()).start();
+                            EntryPoint.exit(0);
+                        } else {
+                            requestUpdate(downloaded, getCurrentLocation());
+                            EntryPoint.exit(0);
+                        }
                     } catch (IOException e) {
                         LOG.warning("Failed to update to " + version, e);
                         Platform.runLater(() -> Controllers.dialog(StringUtils.getStackTrace(e), i18n("update.failed"), MessageType.ERROR));
@@ -248,6 +261,36 @@ public final class UpdateHandler {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Check whether the current JAR is running inside a macOS .app bundle.
+     * The path should contain "Contents/app/" as parent directories.
+     */
+    private static boolean isRunningInAppBundle() {
+        try {
+            Path jarPath = getCurrentLocation();
+            Path parent = jarPath.getParent();
+            return parent != null
+                    && "app".equals(parent.getFileName().toString())
+                    && parent.getParent() != null
+                    && "Contents".equals(parent.getParent().getFileName().toString());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Given a path to a JAR inside a macOS .app bundle, resolve the .app bundle root.
+     * E.g. "/Applications/JMCL.app/Contents/app/JVM-MCL-2026.1.0.jar" → "/Applications/JMCL.app"
+     */
+    private static Path findAppBundle(Path jarPath) {
+        // JAR is at .../JMCL.app/Contents/app/JVM-MCL-xxx.jar
+        // Go up: Contents/app/ → Contents/ → JMCL.app/
+        Path appDir = jarPath.getParent();  // Contents/app/
+        if (appDir != null) appDir = appDir.getParent();  // Contents/
+        if (appDir != null) appDir = appDir.getParent();  // JMCL.app/
+        return appDir;
     }
 
     private static Path getCurrentLocation() throws IOException {

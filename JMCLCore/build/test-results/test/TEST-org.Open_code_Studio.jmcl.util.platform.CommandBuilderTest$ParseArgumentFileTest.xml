@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" tests="28" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.425Z" hostname="cangcangdeMacBook-Air.local" time="0.005">
+  <properties/>
+  <testcase name="testTabSeparator()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.001"/>
+  <testcase name="testEmptyQuotedString()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testVariousSeparators()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEmptyInput()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEmptyLines()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testUnquotedFollowedByQuoted()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.001"/>
+  <testcase name="testMixedQuotedAndUnquoted()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testHashInQuotes()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testQuotedFollowedByUnquoted()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEscapeSequencesInQuotes()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testInlineComment()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testMultiLineQuotedString()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testDoubleQuotedSpaces()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testAtPrefix()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testRealisticArgumentFile()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testSimpleArguments()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEscapeRegularCharOutsideQuotes()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEscapedBackslash()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testMultiLineQuoteWithBackslashContinuation()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testSingleQuotedSpaces()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testUnclosedQuoteAtEOF()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testOnlyWhitespace()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testMultipleLines()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testCommentWithLeadingWhitespace()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.001"/>
+  <testcase name="testCommentLine()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testBackslashOutsideQuotesBeforeWhitespace()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testPartialQuote()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <testcase name="testEscapeInSingleQuotes()" classname="org.Open_code_Studio.jmcl.util.platform.CommandBuilderTest$ParseArgumentFileTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

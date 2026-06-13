@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.464Z" hostname="cangcangdeMacBook-Air.local" time="0.048">
+  <properties/>
+  <testcase name="testCompareMix()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.007"/>
+  <testcase name="isAtLeast()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.001"/>
+  <testcase name="testSortVersions()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.031"/>
+  <testcase name="testCompareUnknown()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.0"/>
+  <testcase name="testIsAprilFools()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.0"/>
+  <testcase name="testGetReleaseOfSnapshot()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.002"/>
+  <testcase name="testParseSimpleRelease()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.001"/>
+  <testcase name="testCompareRelease()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.0"/>
+  <testcase name="testToNormalizedString()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.003"/>
+  <testcase name="testCompareSnapshot()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.0"/>
+  <testcase name="testParseNew()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.002"/>
+  <testcase name="testParseOld()" classname="org.Open_code_Studio.jmcl.util.versioning.GameVersionNumberTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

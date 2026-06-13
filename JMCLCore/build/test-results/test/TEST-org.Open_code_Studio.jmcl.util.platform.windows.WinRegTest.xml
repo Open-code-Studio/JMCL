@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.platform.windows.WinRegTest" tests="2" skipped="2" failures="0" errors="0" timestamp="2026-06-13T03:19:19.444Z" hostname="cangcangdeMacBook-Air.local" time="0.0">
+  <properties/>
+  <testcase name="testQueryValue()" classname="org.Open_code_Studio.jmcl.util.platform.windows.WinRegTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <testcase name="testQuerySubKeys()" classname="org.Open_code_Studio.jmcl.util.platform.windows.WinRegTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

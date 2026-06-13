@@ -92,7 +92,7 @@ def build_version_info(fixed_file_info, strings, translation_bytes):
     return struct.pack('<HHH', total_len_padded, value_length // 2, 0) + vffi_key_padded + fixed_file_info + children + b'\x00' * padding_needed
 
 
-def replace_exe_icon_and_info(exe_path, ico_path):
+def replace_exe_icon_and_info(exe_path, ico_path, version):
     """Replace icon and version info in the EXE."""
 
     with open(exe_path, "rb") as f:
@@ -169,13 +169,13 @@ def replace_exe_icon_and_info(exe_path, ico_path):
     # ---- Part 2: Replace Version Info ----
     print("=== Replacing Version Info ===")
     new_strings = [
-        ("CompanyName", "Open Code Studio"),
+        ("CompanyName", "OCS"),
         ("FileDescription", "JMCL - Java Minecraft Launcher"),
-        ("FileVersion", "DEV2026.2.1"),
+        ("FileVersion", version),
         ("LegalCopyright", "Copyright (C) 2013-2026 Open Code Studio"),
         ("OriginalFilename", "JMCL.exe"),
         ("ProductName", "JMCL Launcher"),
-        ("ProductVersion", "DEV2026.2.1"),
+        ("ProductVersion", version),
     ]
 
     for rsrc in pe.DIRECTORY_ENTRY_RESOURCE.entries:
@@ -241,12 +241,13 @@ def replace_exe_icon_and_info(exe_path, ico_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: set_exe_icon.py <exe_path> <ico_path>")
+    if len(sys.argv) != 4:
+        print("Usage: set_exe_icon.py <exe_path> <ico_path> <version>")
         sys.exit(1)
 
     exe_path = sys.argv[1]
     ico_path = sys.argv[2]
+    version = sys.argv[3]
 
     if not os.path.exists(exe_path):
         print(f"EXE not found: {exe_path}")
@@ -255,5 +256,5 @@ if __name__ == "__main__":
         print(f"ICO not found: {ico_path}")
         sys.exit(1)
 
-    success = replace_exe_icon_and_info(exe_path, ico_path)
+    success = replace_exe_icon_and_info(exe_path, ico_path, version)
     sys.exit(0 if success else 1)

@@ -17,11 +17,13 @@
  */
 package org.Open_code_Studio.jmcl.ui.main;
 
+import com.google.gson.JsonObject;
 import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXPopup;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -30,12 +32,14 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.TextFlow;
@@ -44,10 +48,14 @@ import org.Open_code_Studio.jmcl.Metadata;
 import org.Open_code_Studio.jmcl.download.DefaultDependencyManager;
 import org.Open_code_Studio.jmcl.download.DownloadProvider;
 import org.Open_code_Studio.jmcl.download.VersionList;
+import org.Open_code_Studio.jmcl.download.game.GameRemoteVersionInfo;
+import org.Open_code_Studio.jmcl.download.game.GameRemoteVersions;
+import org.Open_code_Studio.jmcl.game.ReleaseType;
 import org.Open_code_Studio.jmcl.game.Version;
 import org.Open_code_Studio.jmcl.setting.DownloadProviders;
 import org.Open_code_Studio.jmcl.setting.Profile;
 import org.Open_code_Studio.jmcl.setting.Profiles;
+import org.Open_code_Studio.jmcl.task.GetTask;
 import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.task.Task;
 import org.Open_code_Studio.jmcl.theme.Themes;
@@ -66,6 +74,7 @@ import org.Open_code_Studio.jmcl.upgrade.RemoteVersion;
 import org.Open_code_Studio.jmcl.upgrade.UpdateChecker;
 import org.Open_code_Studio.jmcl.upgrade.UpdateHandler;
 import org.Open_code_Studio.jmcl.util.*;
+import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.Open_code_Studio.jmcl.util.i18n.I18n;
 import org.Open_code_Studio.jmcl.util.javafx.BindingMapping;
 import org.Open_code_Studio.jmcl.util.platform.OperatingSystem;
@@ -73,6 +82,9 @@ import org.Open_code_Studio.jmcl.util.platform.Platform;
 import org.Open_code_Studio.jmcl.util.versioning.GameVersionNumber;
 
 import java.io.IOException;
+import java.net.URI;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -86,6 +98,8 @@ import static org.Open_code_Studio.jmcl.util.logging.Logger.LOG;
 
 public final class MainPage extends StackPane implements DecoratorPage {
     private static final String ANNOUNCEMENT = "announcement";
+    private static final String MINECRAFT_CHANGELOG = "minecraft_changelog";
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
  
      {
          getStyleClass().add("md3-main-page");
@@ -99,6 +113,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
     private Profile profile;
 
     private TransitionPane announcementPane;
+    private final VBox announcementBox;
+    private final ScrollPane announcementScrollPane;
     private final StackPane updatePane;
     private final JFXButton menuButton;
 
@@ -122,6 +138,11 @@ public final class MainPage extends StackPane implements DecoratorPage {
         setPadding(new Insets(20));
         FXUtils.setOverflowHidden(this);
 
+        // ── Announcement area ─────────────────────────────────────────────
+        announcementBox = new VBox(16);
+        announcementBox.setPadding(new Insets(15));
+
+        // Nightly / dev channel notice
         if (Metadata.isNightly() || (Metadata.isDev() && !Objects.equals(Metadata.VERSION, config().getShownTips().get(ANNOUNCEMENT)))) {
             String title;
             String content;
@@ -141,7 +162,7 @@ public final class MainPage extends StackPane implements DecoratorPage {
 
             JFXButton btnHide = new JFXButton();
             btnHide.setOnAction(e -> {
-                announcementPane.setContent(new StackPane(), ContainerAnimations.FADE);
+                announcementBox.getChildren().remove(announcementCard);
                 if (Metadata.isDev()) {
                     config().getShownTips().put(ANNOUNCEMENT, Metadata.VERSION);
                 }
@@ -157,17 +178,44 @@ public final class MainPage extends StackPane implements DecoratorPage {
             announcementCard.setSpacing(16);
             announcementCard.getStyleClass().addAll("card", "announcement", "elev-2");
 
-            VBox announcementBox = new VBox(16);
-            announcementBox.setPadding(new Insets(15));
             announcementBox.getChildren().add(announcementCard);
-
-            announcementPane = new TransitionPane();
-            announcementPane.setContent(announcementBox, ContainerAnimations.NONE);
-
-            StackPane.setAlignment(announcementPane, Pos.TOP_LEFT);
-            StackPane.setMargin(announcementPane, new Insets(0));
-            getChildren().add(announcementPane);
         }
+
+        // Wrap the content in a scrollable pane
+        announcementScrollPane = new ScrollPane(announcementBox);
+        announcementScrollPane.setFitToWidth(true);
+        announcementScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        announcementScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        announcementScrollPane.getStyleClass().add("announcement-scroll-pane");
+
+        announcementPane = new TransitionPane();
+        announcementPane.setContent(announcementScrollPane, ContainerAnimations.NONE);
+
+        // Wrap in a plain Pane with explicit clip to absolutely constrain visible area.
+        // A plain Pane does not reflow children based on its own size — it just clips
+        // whatever overflows, which is exactly what we want.
+        Pane announcementContainer = new Pane(announcementPane);
+        // Width: fill entire available width. Right-side elements (launchPane,
+        // updatePane) are overlays in the StackPane — they render on top and don't
+        // need reserved layout space.
+        announcementContainer.prefWidthProperty().bind(
+                widthProperty()
+        );
+        announcementContainer.prefHeightProperty().bind(
+                Bindings.max(heightProperty().subtract(120), 180.0)
+        );
+        announcementContainer.maxWidthProperty().bind(announcementContainer.prefWidthProperty());
+        announcementContainer.maxHeightProperty().bind(announcementContainer.prefHeightProperty());
+        FXUtils.setOverflowHidden(announcementContainer);
+        // Make the inner TransitionPane fill the container
+        announcementPane.prefWidthProperty().bind(announcementContainer.widthProperty());
+        announcementPane.prefHeightProperty().bind(announcementContainer.heightProperty());
+        StackPane.setAlignment(announcementContainer, Pos.TOP_LEFT);
+        StackPane.setMargin(announcementContainer, new Insets(0));
+        getChildren().add(announcementContainer);
+
+        // Fetch Mojang changelog asynchronously
+        javafx.application.Platform.runLater(this::fetchMinecraftChangelogAnnouncement);
 
         updatePane = new StackPane();
         updatePane.setVisible(false);
@@ -426,5 +474,124 @@ public final class MainPage extends StackPane implements DecoratorPage {
         FXUtils.checkFxUserThread();
         this.profile = profile;
         this.versions.setAll(versions);
+    }
+
+    // ── Mojang changelog announcement ─────────────────────────────────────
+
+    /// Asynchronously fetches the Mojang version manifest and shows a changelog
+    /// announcement card on the home page if a new release has been detected.
+    /// Also attempts to fetch the version's wiki page image.
+    private void fetchMinecraftChangelogAnnouncement() {
+        new GetTask(URI.create("https://piston-meta.mojang.com/mc/game/version_manifest.json"))
+                .thenGetJsonAsync(GameRemoteVersions.class)
+                .whenComplete(Schedulers.javafx(), (versions, exception) -> {
+                    if (exception != null || versions == null) {
+                        LOG.warning("Failed to fetch Mojang version manifest", exception);
+                        return;
+                    }
+
+                    // Find the latest release version (sorted by release time)
+                    GameRemoteVersionInfo latestRelease = null;
+                    for (GameRemoteVersionInfo v : versions.versions()) {
+                        if (v.type() == ReleaseType.RELEASE) {
+                            if (latestRelease == null || v.releaseTime().isAfter(latestRelease.releaseTime())) {
+                                latestRelease = v;
+                            }
+                        }
+                    }
+                    if (latestRelease == null) return;
+
+                    String versionId = latestRelease.gameVersion();
+                    String lastShown = (String) config().getShownTips().get(MINECRAFT_CHANGELOG);
+                    if (versionId.equals(lastShown)) return;
+
+                    GameRemoteVersionInfo finalVersion = latestRelease;
+
+                    // Also fetch the wiki page image for this version
+                    String wikiApiUrl = "https://minecraft.wiki/api.php?action=query"
+                            + "&titles=Java_Edition_" + versionId
+                            + "&prop=pageimages&format=json&pithumbsize=640";
+
+                    new GetTask(URI.create(wikiApiUrl))
+                            .whenComplete(Schedulers.javafx(), (json, imgException) -> {
+                                String imageUrl = null;
+                                if (imgException == null && json != null) {
+                                    try {
+                                        JsonObject root = JsonUtils.fromNonNullJson(json, JsonObject.class);
+                                        JsonObject query = root.getAsJsonObject("query");
+                                        if (query != null) {
+                                            JsonObject pages = query.getAsJsonObject("pages");
+                                            if (pages != null) {
+                                                for (var entry : pages.entrySet()) {
+                                                    JsonObject page = entry.getValue().getAsJsonObject();
+                                                    if (page != null && page.has("thumbnail")) {
+                                                        imageUrl = page.getAsJsonObject("thumbnail")
+                                                                .get("source").getAsString();
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        LOG.warning("Failed to parse wiki image for " + versionId, e);
+                                    }
+                                }
+                                createChangelogCard(finalVersion, imageUrl);
+                            }).start();
+                }).start();
+    }
+
+    /// Creates and adds a changelog announcement card for a Mojang game version.
+    /// The card is added to the scrollable announcement area alongside existing content.
+    private void createChangelogCard(GameRemoteVersionInfo version, String imageUrl) {
+        String versionId = version.gameVersion();
+        String typeName = i18n("version.game.release");
+        String dateStr = DATE_FORMATTER.format(version.releaseTime());
+        String wikiUrl = "https://minecraft.wiki/w/Java_Edition_" + versionId;
+
+        VBox card = new VBox();
+
+        // ── Image (if available) ───────────────────────────────────────────
+        if (imageUrl != null) {
+            ImageView imageView = new ImageView(imageUrl);
+            imageView.setPreserveRatio(true);
+            // Size image to fill card width, capped at 160px height to avoid taking too much space
+            imageView.fitWidthProperty().bind(card.widthProperty());
+            imageView.setFitHeight(160);
+            javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+            clip.setArcWidth(16);
+            clip.setArcHeight(16);
+            clip.widthProperty().bind(imageView.fitWidthProperty());
+            clip.heightProperty().bind(imageView.fitHeightProperty());
+            imageView.setClip(clip);
+            card.getChildren().add(imageView);
+        }
+
+        // ── Title bar ──────────────────────────────────────────────────────
+        BorderPane titleBar = new BorderPane();
+        titleBar.getStyleClass().add("title");
+        titleBar.setLeft(new Label(i18n("minecraft.changelog.title", versionId)));
+
+        JFXButton btnHide = new JFXButton();
+        btnHide.setOnAction(e -> {
+            announcementBox.getChildren().remove(card);
+            config().getShownTips().put(MINECRAFT_CHANGELOG, versionId);
+        });
+        btnHide.getStyleClass().add("announcement-close-button");
+        btnHide.setGraphic(SVG.CLOSE.createIcon(20));
+        titleBar.setRight(btnHide);
+
+        String content = String.format(
+                "<b>Minecraft %s</b><br/>%s | %s<br/><a href=\"%s\">%s →</a>",
+                versionId, typeName, dateStr, wikiUrl, i18n("minecraft.changelog.view"));
+        TextFlow body = FXUtils.segmentToTextFlow(content, Controllers::onHyperlinkAction);
+        body.setLineSpacing(4);
+
+        card.getChildren().addAll(titleBar, body);
+        card.setSpacing(16);
+        card.getStyleClass().addAll("card", "announcement", "elev-2");
+
+        // Add the changelog card to the persistent announcement box
+        announcementBox.getChildren().add(card);
     }
 }

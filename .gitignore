@@ -21,6 +21,9 @@ config/azure-ad.properties
 *.zip
 *.tar.gz
 *.rar
+*.dmg
+*.app
+*.exe
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*

@@ -25,6 +25,7 @@ import org.Open_code_Studio.jmcl.Metadata;
 import org.Open_code_Studio.jmcl.task.FileDownloadTask.IntegrityCheck;
 import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.Open_code_Studio.jmcl.util.io.NetworkUtils;
+import org.Open_code_Studio.jmcl.util.platform.OperatingSystem;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -113,14 +114,29 @@ public record RemoteVersion(UpdateChannel channel, String version, String tag, S
                     .orElseThrow(() -> new IOException("assets is missing"));
 
             String jarUrl = null;
-            for (JsonElement assetElement : assets) {
-                JsonObject asset = assetElement.getAsJsonObject();
-                String name = Optional.ofNullable(asset.get("name")).map(JsonElement::getAsString).orElse("");
-                // Match JAR files that contain the project name (JVM-MCL)
-                // This matches: JVM-MCL-DEV2026.2.1.jar, JVM-MCL-2026.1.0.jar, etc.
-                if (name.endsWith(".jar") && name.startsWith(Metadata.NAME)) {
-                    jarUrl = Optional.ofNullable(asset.get("browser_download_url")).map(JsonElement::getAsString).orElse(null);
-                    break;
+
+            // On macOS, prefer the dedicated "macOS.jar" asset
+            if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
+                for (JsonElement assetElement : assets) {
+                    JsonObject asset = assetElement.getAsJsonObject();
+                    String name = Optional.ofNullable(asset.get("name")).map(JsonElement::getAsString).orElse("");
+                    if ("macOS.jar".equals(name)) {
+                        jarUrl = Optional.ofNullable(asset.get("browser_download_url")).map(JsonElement::getAsString).orElse(null);
+                        break;
+                    }
+                }
+            }
+
+            // Fallback: match JAR files that contain the project name (JVM-MCL)
+            // This matches: JVM-MCL-DEV2026.2.1.jar, JVM-MCL-2026.1.0.jar, etc.
+            if (jarUrl == null) {
+                for (JsonElement assetElement : assets) {
+                    JsonObject asset = assetElement.getAsJsonObject();
+                    String name = Optional.ofNullable(asset.get("name")).map(JsonElement::getAsString).orElse("");
+                    if (name.endsWith(".jar") && name.startsWith(Metadata.NAME)) {
+                        jarUrl = Optional.ofNullable(asset.get("browser_download_url")).map(JsonElement::getAsString).orElse(null);
+                        break;
+                    }
                 }
             }
 

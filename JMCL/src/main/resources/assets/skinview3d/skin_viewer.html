@@ -1,0 +1,186 @@
+<!--
+JMCL
+Copyright (C) 2026  OCS
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skin Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: transparent;
+        }
+        canvas#skin_canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #error {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font: 12px sans-serif;
+            text-align: center;
+            max-width: 90%;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="skin_canvas"></canvas>
+    <div id="error"></div>
+    <script src="skinview3d.js"></script>
+    <script>
+        var viewer = null;
+        window._skinViewerLastError = '';
+        window._skinViewerReady = false;
+
+        // ── Error capturing ────────────────────────────────────────────────
+        window.onerror = function(msg, url, line, col, err) {
+            var txt = 'JS Error: ' + msg + ' at line ' + line;
+            window._skinViewerLastError = txt;
+            var el = document.getElementById('error');
+            el.style.display = 'block';
+            el.textContent = txt;
+            return true;
+        };
+
+        // capture console.error
+        var origConsoleError = console.error;
+        console.error = function() {
+            var txt = 'console.error: ' + Array.prototype.join.call(arguments, ' ');
+            window._skinViewerLastError = txt;
+            var el = document.getElementById('error');
+            el.style.display = 'block';
+            el.textContent = txt;
+            origConsoleError.apply(console, arguments);
+        };
+
+        // ── WebGL detection ─────────────────────────────────────────────────
+        function checkWebGL() {
+            try {
+                var c = document.createElement('canvas');
+                var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+                if (!gl) {
+                    window._skinViewerLastError = 'WebGL not available';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').textContent = 'WebGL not available';
+                    return false;
+                }
+                return true;
+            } catch(e) {
+                window._skinViewerLastError = 'WebGL check failed: ' + e.message;
+                return false;
+            }
+        }
+
+        // ── Initialization ──────────────────────────────────────────────────
+        function tryInit() {
+            if (typeof skinview3d === 'undefined') {
+                var txt = 'skinview3d not loaded';
+                window._skinViewerLastError = txt;
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = txt;
+                return false;
+            }
+            if (!checkWebGL()) {
+                return false;
+            }
+            var canvas = document.getElementById('skin_canvas');
+            if (!canvas) {
+                var txt = 'canvas not found';
+                window._skinViewerLastError = txt;
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = txt;
+                return false;
+            }
+            try {
+                viewer = new skinview3d.SkinViewer({
+                    canvas: canvas,
+                    width: 300,
+                    height: 400
+                });
+                viewer.renderer.setClearColor(0x000000, 0);
+                viewer.globalLight.intensity = 0.8;
+                viewer.cameraLight.intensity = 0.5;
+                viewer.autoRotate = true;
+                viewer.autoRotateSpeed = 0.5;
+                viewer.animation = new skinview3d.WalkingAnimation();
+                viewer.animation.speed = 0.6;
+                window._skinViewerReady = true;
+                resizeCanvas();
+                return true;
+            } catch(e) {
+                var txt = 'Init error: ' + e.message;
+                window._skinViewerLastError = txt;
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = txt;
+                return false;
+            }
+        }
+
+        // Try immediately; if skinview3d isn't ready yet, retry with polling
+        if (!tryInit()) {
+            var retries = 0;
+            var maxRetries = 100;
+            var poll = setInterval(function() {
+                if (tryInit()) {
+                    clearInterval(poll);
+                } else if (++retries >= maxRetries) {
+                    clearInterval(poll);
+                }
+            }, 100);
+        }
+
+        function loadSkin(dataURL) {
+            if (!viewer) return;
+            viewer.loadSkin(dataURL);
+        }
+
+        function loadCape(dataURL) {
+            if (!viewer) return;
+            if (dataURL) {
+                viewer.loadCape(dataURL);
+            } else if (viewer.playerObject) {
+                viewer.playerObject.cape.visible = false;
+            }
+        }
+
+        function resizeCanvas() {
+            if (!viewer) return;
+            var rect = document.getElementById("skin_canvas").getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                viewer.width = Math.round(rect.width);
+                viewer.height = Math.round(rect.height);
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        if (window.ResizeObserver) {
+            new ResizeObserver(resizeCanvas).observe(
+                document.getElementById("skin_canvas")
+            );
+        }
+    </script>
+</body>
+</html>

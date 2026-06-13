@@ -43,14 +43,25 @@ if [ -n "$JAR_FILE" ] && [ -n "$EXE_FILE" ]; then
     if [ -f /tmp/HMCLauncher_original.exe ]; then
         echo "Extracted HMCLauncher.exe ($(stat -f%z /tmp/HMCLauncher_original.exe) bytes)"
 
-        # Compile and run CreateIcon
-        "$JAVA_HOME/bin/javac" -cp "$SCRIPT_DIR" "$SCRIPT_DIR/CreateIcon.java" && \
-        "$JAVA_HOME/bin/java" -cp "$SCRIPT_DIR" CreateIcon "$SCRIPT_DIR/IMG_0132.JPG" /tmp/icon.ico
+        # Extract version from JAR
+        RAW_VERSION=$(unzip -p "$JAR_FILE" "assets/jvmmcl.properties" 2>/dev/null \
+            | grep "^jvmmcl.version=" | cut -d= -f2 || echo "2026.1.0")
+        echo "Version: $RAW_VERSION"
+
+        # Compile and run CreateIcon using IMG_0132.JPG
+        ICON_JPG="$SCRIPT_DIR/IMG_0132.JPG"
+        if [ -f "$ICON_JPG" ]; then
+            "$JAVA_HOME/bin/javac" -cp "$SCRIPT_DIR" "$SCRIPT_DIR/CreateIcon.java" && \
+            "$JAVA_HOME/bin/java" -cp "$SCRIPT_DIR" CreateIcon "$ICON_JPG" /tmp/icon.ico
+        else
+            echo "ERROR: IMG_0132.JPG not found"
+            exit 1
+        fi
 
         if [ -f /tmp/icon.ico ]; then
             echo "ICO created ($(stat -f%z /tmp/icon.ico) bytes)"
 
-            python3 "$SCRIPT_DIR/set_exe_icon.py" /tmp/HMCLauncher_original.exe /tmp/icon.ico
+            python3 "$SCRIPT_DIR/set_exe_icon.py" /tmp/HMCLauncher_original.exe /tmp/icon.ico "$RAW_VERSION"
 
             if [ -f /tmp/HMCLauncher_original_new.exe ]; then
                 cat /tmp/HMCLauncher_original_new.exe "$JAR_FILE" > "$EXE_FILE"

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.versioning.VersionRangeTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.515Z" hostname="cangcangdeMacBook-Air.local" time="0.001">
+  <properties/>
+  <testcase name="testIsOverlappedBy()" classname="org.Open_code_Studio.jmcl.util.versioning.VersionRangeTest" time="0.0"/>
+  <testcase name="testIntersectionWith()" classname="org.Open_code_Studio.jmcl.util.versioning.VersionRangeTest" time="0.0"/>
+  <testcase name="testContains()" classname="org.Open_code_Studio.jmcl.util.versioning.VersionRangeTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

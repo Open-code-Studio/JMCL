@@ -25,7 +25,8 @@ import org.Open_code_Studio.jmcl.auth.yggdrasil.TextureModel;
 import org.Open_code_Studio.jmcl.game.TexturesLoader;
 import org.Open_code_Studio.jmcl.setting.Accounts;
 import org.Open_code_Studio.jmcl.ui.skin.SkinCanvas;
-import org.Open_code_Studio.jmcl.ui.skin.SkinHelper;
+import org.Open_code_Studio.jmcl.ui.skin.animation.SkinAniRunning;
+import org.Open_code_Studio.jmcl.ui.skin.animation.SkinAniWavingArms;
 
 /**
  * A pane that displays a 3D preview of the currently selected account's skin.
@@ -37,8 +38,12 @@ public class SkinViewPane extends StackPane {
     public SkinViewPane() {
         getStyleClass().add("skin-view-pane");
 
-        // SkinCanvas now extends Pane and adapts to container size natively via layoutChildren()
-        skinCanvas = new SkinCanvas(TexturesLoader.getDefaultSkinImage(), 300, 400, true);
+        skinCanvas = new SkinCanvas(TexturesLoader.getDefaultSkinImage(), 300, 400, false);
+        skinCanvas.enableRotation(0.3);
+        skinCanvas.getAnimationPlayer().addSkinAnimation(
+                new SkinAniRunning(1, 800, 30, skinCanvas),
+                new SkinAniWavingArms(1, 3000, 45, skinCanvas)
+        );
         getChildren().add(skinCanvas);
 
         // Listen for account changes
@@ -66,8 +71,6 @@ public class SkinViewPane extends StackPane {
     }
 
     private void updateSkinFromImage(Image skin, boolean isSlim) {
-        if (SkinHelper.isNoRequest(skin) && SkinHelper.isSkin(skin)) {
-            skinCanvas.updateSkin(skin, isSlim, null);
-        }
+        skinCanvas.updateSkin(skin, isSlim, null);
     }
 }

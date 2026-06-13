@@ -18,7 +18,6 @@
 package org.Open_code_Studio.jmcl.ui.main;
 
 import com.jfoenix.controls.JFXButton;
-import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.WeakInvalidationListener;
 import javafx.beans.property.ObjectProperty;
@@ -32,8 +31,6 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.Open_code_Studio.jmcl.Metadata;
-import org.Open_code_Studio.jmcl.setting.Config;
-import org.Open_code_Studio.jmcl.setting.ConfigHolder;
 import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
@@ -45,9 +42,7 @@ import org.Open_code_Studio.jmcl.upgrade.UpdateChannel;
 import org.Open_code_Studio.jmcl.upgrade.UpdateChecker;
 import org.Open_code_Studio.jmcl.upgrade.UpdateHandler;
 import org.Open_code_Studio.jmcl.util.AprilFools;
-import org.Open_code_Studio.jmcl.util.FileSaver;
 import org.Open_code_Studio.jmcl.util.Lang;
-import org.Open_code_Studio.jmcl.util.Restarter;
 import org.Open_code_Studio.jmcl.util.StringUtils;
 import org.Open_code_Studio.jmcl.util.i18n.I18n;
 import org.Open_code_Studio.jmcl.util.i18n.SupportedLocale;
@@ -210,24 +205,6 @@ public final class SettingsPage extends ScrollPane {
             }
 
             {
-                ComponentList launcherTypePaneList = new ComponentList();
-
-                {
-                    var chooseLauncherTypePane = new LineSelectButton<String>();
-                    chooseLauncherTypePane.setTitle(i18n("settings.launcher.launcher_type"));
-                    chooseLauncherTypePane.setSubtitle(i18n("settings.take_effect_after_restart"));
-
-                    chooseLauncherTypePane.setNullSafeConverter(type -> i18n("firstlaunch.type." + type.toLowerCase()));
-                    chooseLauncherTypePane.setItems(List.of("FULL", "CLASSIC", "CREATOR", "PLAYER"));
-                    chooseLauncherTypePane.valueProperty().bindBidirectional(config().launcherTypeProperty());
-
-                    launcherTypePaneList.getContent().add(chooseLauncherTypePane);
-                }
-
-                rootPane.getChildren().addAll(ComponentList.createComponentListTitle(i18n("settings.launcher.launcher_type")), launcherTypePaneList);
-            }
-
-            {
                 ComponentList miscPaneList = new ComponentList();
 
                 if (AprilFools.isShowAprilFoolsSettings()) {
@@ -291,23 +268,6 @@ public final class SettingsPage extends ScrollPane {
                     miscPaneList.getContent().add(debugPane);
                 }
 
-                {
-                    BorderPane resetPane = new BorderPane();
-
-                    Label resetLeft = new Label(i18n("settings.launcher.reset"));
-                    BorderPane.setAlignment(resetLeft, Pos.CENTER_LEFT);
-                    resetPane.setLeft(resetLeft);
-
-                    JFXButton resetButton = new JFXButton(i18n("settings.launcher.reset.button"));
-                    resetButton.setOnAction(e -> onReset());
-                    resetButton.getStyleClass().add("jfx-button-border");
-
-                    BorderPane.setAlignment(resetButton, Pos.CENTER_RIGHT);
-                    resetPane.setRight(resetButton);
-
-                    miscPaneList.getContent().add(resetPane);
-                }
-
                 rootPane.getChildren().addAll(ComponentList.createComponentListTitle(i18n("settings.launcher.misc")), miscPaneList);
             }
         }
@@ -323,43 +283,6 @@ public final class SettingsPage extends ScrollPane {
             return;
         }
         UpdateHandler.updateFrom(target);
-    }
-
-    private void onReset() {
-        Controllers.confirm(
-                i18n("settings.launcher.reset.confirm"),
-                i18n("settings.launcher.reset"),
-                MessageType.WARNING,
-                () -> {
-                    try {
-                        FileSaver.waitForAllSaves();
-                    } catch (InterruptedException ignored) {
-                        // Ignore
-                    }
-
-                    // Write a fresh default config to disk so all settings
-                    // (including firstLaunchWizardShown=false) take effect on restart.
-                    // Deleting the file is unreliable because the auto-save listener
-                    // may recreate it with the old values during shutdown.
-                    try {
-                        Config freshConfig = new Config();
-                        Path configLocation = ConfigHolder.configLocation();
-                        Files.writeString(configLocation, freshConfig.toJson());
-                        LOG.info("Config reset to defaults: " + configLocation);
-                    } catch (IOException e) {
-                        LOG.warning("Failed to write fresh config for reset", e);
-                    }
-
-                    try {
-                        Restarter.restartSelf();
-                    } catch (IOException e) {
-                        LOG.warning("Failed to restart self", e);
-                    }
-
-                    Platform.exit();
-                },
-                null
-        );
     }
 
     private static String getEntryName(Set<String> entryNames, String name) {

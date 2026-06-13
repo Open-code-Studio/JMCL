@@ -1426,6 +1426,44 @@
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.15), 20, 0.0, 0, 4);
 }
 
+.task-log-window .check-box {
+    -fx-text-fill: -monet-on-surface;
+}
+
+.task-log-window .check-box .box {
+    -fx-border-color: -monet-outline;
+    -fx-border-radius: 2;
+    -fx-background-radius: 2;
+}
+
+.task-log-window .check-box:selected .box {
+    -fx-background-color: -monet-primary;
+    -fx-border-color: -monet-primary;
+}
+
+.task-log-window .check-box:selected .mark {
+    -fx-background-color: -monet-on-primary;
+}
+
+.task-log-window .button {
+    -fx-background-color: -monet-surface-container;
+    -fx-background-radius: 999px;
+    -fx-text-fill: -monet-primary;
+    -fx-padding: 6 16 6 16;
+    -fx-border-color: -monet-outline;
+    -fx-border-radius: 999px;
+    -fx-cursor: hand;
+}
+
+.task-log-window .button:hover {
+    -fx-background-color: -monet-surface-container-highest;
+}
+
+.task-log-window .button:pressed {
+    -fx-background-color: -monet-surface-dim;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 4, 0.4, 0, 1);
+}
+
 /* =============================================================================
  * MD3 Cards — 12-16dp radius, refined elevation
  * ============================================================================= */
@@ -2748,74 +2786,37 @@
     -fx-font-weight: 600;
 }
 
-/* ========================================
-   Play Mode — simplified LauncherX-style UI
-   ======================================== */
-.play-mode-pane {
-    -fx-alignment: center;
+/* =============================================================================
+ * Announcement ScrollPane
+ * ============================================================================= */
+.announcement-scroll-pane {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.announcement-scroll-pane .viewport {
     -fx-background-color: transparent;
 }
 
-.play-mode-pane .play-mode-title {
-    -fx-font-size: 36px;
-    -fx-font-weight: 700;
-    -fx-text-fill: -monet-on-surface;
-}
-
-.play-mode-pane .play-mode-section-title {
-    -fx-font-size: 14px;
-    -fx-font-weight: 500;
-    -fx-text-fill: -monet-on-surface-variant;
-    -fx-cursor: hand;
-}
-
-.play-mode-pane .play-mode-section-title:hover {
-    -fx-text-fill: -monet-primary;
-}
-
-.play-mode-pane .play-mode-combo {
-    -fx-background-color: -monet-surface-container-highest;
-    -fx-background-radius: 12;
-    -fx-border-color: -monet-outline-variant;
-    -fx-border-radius: 12;
-    -fx-border-width: 1px;
-    -fx-padding: 8 16;
-    -fx-font-size: 14px;
-}
-
-.play-mode-pane .play-mode-play-btn {
-    -fx-background-color: -monet-primary;
-    -fx-background-radius: 28;
-    -fx-text-fill: -monet-on-primary;
-    -fx-font-size: 18px;
-    -fx-font-weight: 700;
-    -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 8, 0.0, 0, 4);
-}
-
-.play-mode-pane .play-mode-play-btn:hover {
-    -fx-background-color: -monet-primary-container;
-    -fx-text-fill: -monet-on-primary-container;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 12, 0.0, 0, 6);
-}
-
-.play-mode-pane .play-mode-play-btn:pressed {
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 16, 0.0, 0, 8);
-    -fx-translate-y: 1px;
-}
-
-.play-mode-pane .play-mode-settings-btn {
+.announcement-scroll-pane .scroll-bar {
     -fx-background-color: transparent;
-    -fx-border-color: -monet-outline;
-    -fx-border-radius: 20;
-    -fx-background-radius: 20;
-    -fx-text-fill: -monet-on-surface-variant;
-    -fx-font-size: 14px;
-    -fx-padding: 10 24;
-    -fx-cursor: hand;
+    -fx-background-radius: 0;
 }
 
-.play-mode-pane .play-mode-settings-btn:hover {
-    -fx-background-color: -monet-surface-container-high;
-    -fx-text-fill: -monet-on-surface;
+.announcement-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: -monet-surface-tint;
+    -fx-background-radius: 4;
+}
+
+.announcement-scroll-pane .scroll-bar .increment-button,
+.announcement-scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.announcement-scroll-pane .scroll-bar .increment-arrow,
+.announcement-scroll-pane .scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
 }

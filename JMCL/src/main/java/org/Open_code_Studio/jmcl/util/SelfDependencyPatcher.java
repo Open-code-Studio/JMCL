@@ -45,7 +45,6 @@ import org.Open_code_Studio.jmcl.EntryPoint;
 import org.Open_code_Studio.jmcl.Metadata;
 import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.Open_code_Studio.jmcl.util.io.ChecksumMismatchException;
-import org.Open_code_Studio.jmcl.util.io.IOUtils;
 import org.Open_code_Studio.jmcl.java.JavaRuntime;
 import org.Open_code_Studio.jmcl.util.io.JarUtils;
 import org.Open_code_Studio.jmcl.util.platform.Platform;
@@ -55,10 +54,13 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.Collection;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CancellationException;
@@ -76,7 +78,7 @@ public final class SelfDependencyPatcher {
     private final List<DependencyDescriptor> dependencies = DependencyDescriptor.readDependencies();
     private final List<Repository> repositories;
     private final Repository defaultRepository;
-    private final byte[] buffer = new byte[IOUtils.DEFAULT_BUFFER_SIZE];
+    private final byte[] buffer = new byte[64 * 1024];
     private final MessageDigest digest = DigestUtils.getDigest("SHA-1");
 
     private SelfDependencyPatcher() throws PatchException {
@@ -161,37 +163,88 @@ public final class SelfDependencyPatcher {
      * Patch in any missing dependencies, if any.
      */
     public static void patch() throws PatchException, CancellationException {
-        // Do nothing if JavaFX is detected
-        try {
-            Class.forName("javafx.application.Application");
-            return;
-        } catch (Exception ignored) {
-        }
+        boolean hasBase = classExists("javafx.application.Application");
+        boolean hasWeb = classExists("javafx.scene.web.WebView");
+
+        // Everything is fine
+        if (hasBase && hasWeb) return;
 
         SelfDependencyPatcher patcher = new SelfDependencyPatcher();
+        boolean needAll = !hasBase;
 
-        // Otherwise we're free to download in Java 11+
-        LOG.info("Missing JavaFX dependencies, attempting to patch in missing classes");
+        LOG.info(needAll
+                ? "Missing JavaFX dependencies, attempting to patch in missing classes"
+                : "Missing javafx.web module, attempting to patch it in");
 
-        // Download missing dependencies
-        List<DependencyDescriptor> missingDependencies = patcher.checkMissingDependencies();
-        if (!missingDependencies.isEmpty()) {
+        if (needAll) {
+            // Download all missing dependencies (original behaviour)
+            List<DependencyDescriptor> missing = patcher.checkMissingDependencies();
+            if (!missing.isEmpty()) {
+                // Try to copy from application bundle first (avoids network download)
+                missing = patcher.copyFromBundle(missing);
+            }
+            if (!missing.isEmpty()) {
+                try {
+                    patcher.fetchDependencies(missing);
+                } catch (IOException e) {
+                    throw new PatchException("Failed to download dependencies", e);
+                }
+            }
             try {
-                patcher.fetchDependencies(missingDependencies);
-            } catch (IOException e) {
-                throw new PatchException("Failed to download dependencies", e);
+                patcher.loadFromCache(patcher.dependencies);
+            } catch (IOException ex) {
+                throw new PatchException("Failed to load JavaFX cache", ex);
+            } catch (ReflectiveOperationException | NoClassDefFoundError ex) {
+                throw new PatchException("Failed to add dependencies to classpath!", ex);
+            }
+        } else {
+            // Only download and load javafx.web
+            DependencyDescriptor webDep = patcher.dependencies.stream()
+                    .filter(d -> "javafx.web".equals(d.module))
+                    .findFirst()
+                    .orElseThrow(() -> new PatchException("javafx.web is not declared in openjfx-dependencies.json"));
+
+            boolean needsDownload = true;
+            if (java.nio.file.Files.exists(webDep.localPath())) {
+                try {
+                    patcher.verifyChecksum(webDep);
+                    needsDownload = false;
+                } catch (ChecksumMismatchException e) {
+                    LOG.warning("Corrupted javafx.web: " + e.getMessage());
+                } catch (IOException e) {
+                    // fall through to download
+                }
+            }
+            if (needsDownload) {
+                // Try to copy from application bundle first
+                needsDownload = !patcher.copyFromBundle(List.of(webDep)).isEmpty();
+            }
+            if (needsDownload) {
+                try {
+                    patcher.fetchDependencies(List.of(webDep));
+                } catch (IOException e) {
+                    throw new PatchException("Failed to download javafx.web", e);
+                }
+            }
+            try {
+                patcher.loadFromCache(List.of(webDep));
+            } catch (IOException ex) {
+                throw new PatchException("Failed to load javafx.web cache", ex);
+            } catch (ReflectiveOperationException | NoClassDefFoundError ex) {
+                throw new PatchException("Failed to add javafx.web to classpath!", ex);
             }
         }
 
-        // Add the dependencies
-        try {
-            patcher.loadFromCache();
-        } catch (IOException ex) {
-            throw new PatchException("Failed to load JavaFX cache", ex);
-        } catch (ReflectiveOperationException | NoClassDefFoundError ex) {
-            throw new PatchException("Failed to add dependencies to classpath!", ex);
-        }
         LOG.info(" - Done!");
+    }
+
+    private static boolean classExists(String className) {
+        try {
+            Class.forName(className);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private Repository showChooseRepositoryDialog() {
@@ -238,18 +291,86 @@ public final class SelfDependencyPatcher {
      * @throws ReflectiveOperationException When the call to add these urls to the system classpath failed.
      */
     private void loadFromCache() throws IOException, ReflectiveOperationException {
+        loadFromCache(dependencies);
+    }
+
+    private void loadFromCache(Collection<DependencyDescriptor> deps) throws IOException, ReflectiveOperationException {
         LOG.info(" - Loading dependencies...");
 
-        Set<String> modules = dependencies.stream()
+        Set<String> modules = deps.stream()
                 .map(it -> it.module)
                 .collect(toSet());
 
-        Path[] jars = dependencies.stream()
+        Path[] jars = deps.stream()
                 .map(DependencyDescriptor::localPath)
                 .toArray(Path[]::new);
 
         String addOpens = JarUtils.getAttribute("jvmmcl.add-opens", null);
         JavaFXPatcher.patch(modules, jars, addOpens != null ? addOpens.split(" ") : new String[0]);
+    }
+
+    /**
+     * Try to copy missing JavaFX JARs from the application bundle directory
+     * (e.g. JMCL.app/Contents/app/). This avoids network downloads when the app
+     * was packaged with JavaFX modules included.
+     *
+     * @param missing the list of still-missing dependencies
+     * @return the dependencies that are still missing after the bundle copy attempt
+     */
+    private List<DependencyDescriptor> copyFromBundle(List<DependencyDescriptor> missing) {
+        Path bundleDir = getBundleJarDirectory();
+        if (bundleDir == null) {
+            return missing; // not in a bundle structure
+        }
+
+        List<DependencyDescriptor> stillMissing = new ArrayList<>();
+        try {
+            Files.createDirectories(DependencyDescriptor.DEPENDENCIES_DIR_PATH);
+        } catch (IOException e) {
+            LOG.warning("Cannot create dependencies directory", e);
+            return missing;
+        }
+
+        for (DependencyDescriptor dep : missing) {
+            Path bundleJar = bundleDir.resolve(dep.filename());
+            if (Files.exists(bundleJar)) {
+                try {
+                    Files.copy(bundleJar, dep.localPath(), StandardCopyOption.REPLACE_EXISTING);
+                    verifyChecksum(dep);
+                    LOG.info(" - Copied " + dep.filename() + " from application bundle");
+                } catch (ChecksumMismatchException e) {
+                    LOG.warning("Bundle checksum mismatch for " + dep.filename() + ": " + e.getMessage());
+                    stillMissing.add(dep);
+                } catch (IOException e) {
+                    LOG.warning("Failed to copy " + dep.filename() + " from bundle: " + e.getMessage());
+                    stillMissing.add(dep);
+                }
+            } else {
+                stillMissing.add(dep);
+            }
+        }
+
+        return stillMissing;
+    }
+
+    /**
+     * Detect whether the application is running from within a packaged .app bundle.
+     * Returns the parent directory of the code-source JAR (Contents/app/), or
+     * {@code null} if not in a bundle structure.
+     */
+    private static Path getBundleJarDirectory() {
+        try {
+            Path codeSource = Path.of(
+                    SelfDependencyPatcher.class.getProtectionDomain()
+                            .getCodeSource().getLocation().toURI());
+            Path parent = codeSource.getParent();
+            if (parent != null && Files.isDirectory(parent)) {
+                return parent;
+            }
+        } catch (Exception e) {
+            // Not in a bundle — fall through
+        }
+        return null;
     }
 
     /**
@@ -311,11 +432,17 @@ public final class SelfDependencyPatcher {
 
                     LOG.info("Downloading " + url);
 
-                    try (InputStream is = new URL(url).openStream();
+                    HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+                    connection.setRequestProperty("User-Agent", "JMCL/" + Metadata.VERSION);
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(30000);
+                    connection.setInstanceFollowRedirects(true);
+                    //noinspection MagicConstant
+                    try (InputStream is = connection.getInputStream();
                          OutputStream os = Files.newOutputStream(dependency.localPath())) {
 
                         int read;
-                        while ((read = is.read(buffer, 0, IOUtils.DEFAULT_BUFFER_SIZE)) >= 0) {
+                        while ((read = is.read(buffer, 0, buffer.length)) >= 0) {
                             if (isCancelled.get()) {
                                 try {
                                     os.close();
@@ -370,7 +497,7 @@ public final class SelfDependencyPatcher {
         digest.reset();
         try (InputStream is = Files.newInputStream(dependency.localPath())) {
             int read;
-            while ((read = is.read(buffer, 0, IOUtils.DEFAULT_BUFFER_SIZE)) > -1) {
+            while ((read = is.read(buffer, 0, buffer.length)) > -1) {
                 digest.update(buffer, 0, read);
             }
         }

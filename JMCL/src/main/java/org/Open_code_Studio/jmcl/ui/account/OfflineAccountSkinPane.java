@@ -40,8 +40,6 @@ import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
 import org.Open_code_Studio.jmcl.ui.construct.*;
 import org.Open_code_Studio.jmcl.ui.skin.SkinCanvas;
-import org.Open_code_Studio.jmcl.ui.skin.animation.SkinAniRunning;
-import org.Open_code_Studio.jmcl.ui.skin.animation.SkinAniWavingArms;
 import org.Open_code_Studio.jmcl.util.io.FileUtils;
 
 import java.nio.file.Path;
@@ -75,22 +73,20 @@ public class OfflineAccountSkinPane extends StackPane {
 
         BorderPane pane = new BorderPane();
 
-        SkinCanvas canvas = new SkinCanvas(TexturesLoader.getDefaultSkinImage(), 300, 300, true);
-        StackPane canvasPane = new StackPane(canvas);
-        canvasPane.setPrefWidth(300);
-        canvasPane.setPrefHeight(300);
-        pane.setCenter(canvas);
-        canvas.getAnimationPlayer().addSkinAnimation(new SkinAniWavingArms(100, 2000, 7.5, canvas), new SkinAniRunning(100, 100, 30, canvas));
-        canvas.enableRotation(.5);
+        SkinCanvas skinCanvas = new SkinCanvas(TexturesLoader.getDefaultSkinImage(), 300, 300, false);
+        StackPane skinViewerPane = new StackPane(skinCanvas);
+        skinViewerPane.setPrefWidth(300);
+        skinViewerPane.setPrefHeight(300);
+        pane.setCenter(skinViewerPane);
 
-        canvas.addEventHandler(DragEvent.DRAG_OVER, e -> {
+        skinCanvas.addEventHandler(DragEvent.DRAG_OVER, e -> {
             if (e.getDragboard().hasFiles()) {
                 Path file = e.getDragboard().getFiles().get(0).toPath();
                 if (FileUtils.getName(file).endsWith(".png"))
                     e.acceptTransferModes(TransferMode.COPY);
             }
         });
-        canvas.addEventHandler(DragEvent.DRAG_DROPPED, e -> {
+        skinCanvas.addEventHandler(DragEvent.DRAG_DROPPED, e -> {
             if (e.isAccepted()) {
                 Path skin = e.getDragboard().getFiles().get(0).toPath();
                 Platform.runLater(() -> {
@@ -148,14 +144,14 @@ public class OfflineAccountSkinPane extends StackPane {
                         } else {
                             UUID uuid = this.account.getUUID();
                             if (result == null || result.getSkin() == null && result.getCape() == null) {
-                                canvas.updateSkin(
+                                skinCanvas.updateSkin(
                                         TexturesLoader.getDefaultSkin(uuid).getImage(),
                                         TexturesLoader.getDefaultModel(uuid) == TextureModel.SLIM,
                                         null
                                 );
                                 return;
                             }
-                            canvas.updateSkin(
+                            skinCanvas.updateSkin(
                                     result.getSkin() != null ? result.getSkin().getImage() : TexturesLoader.getDefaultSkin(uuid).getImage(),
                                     result.getModel() == TextureModel.SLIM,
                                     result.getCape() != null ? result.getCape().getImage() : null);

@@ -43,4 +43,10 @@ public interface ObjectiveCRuntime extends Library {
 
     /// @see <a href="https://developer.apple.com/documentation/ObjectiveC/objc_msgSend">objc_msgSend function</a>
     Pointer objc_msgSend(Pointer receiver, Pointer selector, String arg);
+
+    /// @see <a href="https://developer.apple.com/documentation/ObjectiveC/objc_msgSend">objc_msgSend (BOOL arg)</a>
+    Pointer objc_msgSend(Pointer receiver, Pointer selector, boolean arg);
+
+    /// @see <a href="https://developer.apple.com/documentation/ObjectiveC/objc_msgSend">objc_msgSend (CGFloat arg)</a>
+    Pointer objc_msgSend(Pointer receiver, Pointer selector, double arg);
 }

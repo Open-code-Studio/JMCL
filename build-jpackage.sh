@@ -1,16 +1,18 @@
 #!/bin/bash
 # =============================================================================
-# JMCL jpackage Build Script
-# Builds JMCL from source and packages it as a macOS .dmg installer.
+# JMCL Build & Package Script
+# Builds JMCL from source and packages it as a macOS .dmg installer with
+# multi-language license agreement (powered by dmgbuild).
 #
 # Usage:
-#   ./build-jpackage.sh            — full build + package
-#   ./build-jpackage.sh --skip-build — package only (uses existing JAR)
-#   ./build-jpackage.sh --help     — show usage
+#   ./build-jpackage.sh              — full build + package
+#   ./build-jpackage.sh --skip-build — package only (reuse existing JAR)
+#   ./build-jpackage.sh --help       — show usage
 #
 # Prerequisites:
 #   - JDK 21+ with jpackage (JAVA_HOME or JDK21_HOME)
 #   - Gradle (bundled wrapper)
+#   - dmgbuild (pip3 install dmgbuild)
 # =============================================================================
 set -euo pipefail
 
@@ -22,6 +24,7 @@ APP_NAME="JMCL"
 VENDOR="Open Code Studio"
 IDENTIFIER="org.Open_code_Studio.jmcl"
 ICON_PNG="$SCRIPT_DIR/JMCL/image/jmcl.png"
+LICENSES_DIR="$SCRIPT_DIR/licenses"
 BUILD_DIR="$SCRIPT_DIR/JMCL/build/libs"
 DEST_DIR="$SCRIPT_DIR/dist"
 
@@ -44,8 +47,24 @@ if [ -z "$JAVA_HOME" ] || [ ! -f "$JAVA_HOME/bin/jpackage" ]; then
 fi
 
 JPACKAGE="$JAVA_HOME/bin/jpackage"
-JAVA="$JAVA_HOME/bin/java"
 echo "Using JDK: $JAVA_HOME"
+
+# ---- dmgbuild detection ----
+DMGBUILD=""
+for p in \
+    "/Users/cangcang/Library/Python/3.9/bin/dmgbuild" \
+    "$(which dmgbuild 2>/dev/null || echo "")" \
+    "/opt/homebrew/bin/dmgbuild"; do
+    if [ -x "$p" ]; then
+        DMGBUILD="$p"
+        break
+    fi
+done
+if [ -z "$DMGBUILD" ]; then
+    echo "ERROR: dmgbuild not found. Install with: pip3 install dmgbuild"
+    exit 1
+fi
+echo "Using dmgbuild: $DMGBUILD"
 
 # ---- Arg parsing ----
 SKIP_BUILD=false
@@ -59,11 +78,12 @@ elif [ "${1:-}" = "--help" ]; then
     exit 0
 fi
 
-# ---- Step 1: Build ----
+# ============================================================================
+# Step 1: Build
+# ============================================================================
 if [ "$SKIP_BUILD" = false ]; then
     echo ""
     echo "=== Step 1: Building JMCL ==="
-    export _JAVA_OPTIONS="-Djdk.lang.Process.launchMechanism=FORK"
     export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g -Djava.awt.headless=true"
 
     if command -v gradle &>/dev/null; then
@@ -88,7 +108,9 @@ else
     echo "=== Skipping build (--skip-build) ==="
 fi
 
-# ---- Step 2: Find JAR ----
+# ============================================================================
+# Step 2: Find JAR & determine version
+# ============================================================================
 echo ""
 echo "=== Step 2: Locating JAR ==="
 JAR_FILE=$(ls -t "$BUILD_DIR"/*.jar 2>/dev/null | head -1)
@@ -98,20 +120,18 @@ if [ -z "$JAR_FILE" ]; then
 fi
 echo "JAR: $JAR_FILE"
 
-# Extract version from JAR filename: JVM-MCL-<version>.jar → <version>
 JAR_BASENAME=$(basename "$JAR_FILE" .jar)
 RAW_VERSION="${JAR_BASENAME#JVM-MCL-}"
 if [ -z "$RAW_VERSION" ] || [ "$RAW_VERSION" = "$JAR_BASENAME" ]; then
-    # Fallback: read from jvmmcl.properties inside the JAR
     RAW_VERSION=$(unzip -p "$JAR_FILE" "assets/jvmmcl.properties" 2>/dev/null \
         | grep "^jvmmcl.version=" | cut -d= -f2 || echo "1.0.0")
 fi
-# Sanitize version: remove any non-numeric prefix (e.g. DEV2026.2.1 → 2026.2.1)
-# jpackage requires a pure numeric version (major.minor.patch)
 APP_VERSION=$(echo "$RAW_VERSION" | sed 's/^[^0-9]*//')
 echo "Version: $RAW_VERSION → $APP_VERSION"
 
-# ---- Step 3: Prepare clean input directory (JAR only, no .exe/.sh/.deb) ----
+# ============================================================================
+# Step 3: Prepare clean input directory (JAR only)
+# ============================================================================
 echo ""
 echo "=== Step 3: Preparing clean input directory ==="
 INPUT_DIR="/tmp/jmcl-input-$$"
@@ -119,16 +139,15 @@ mkdir -p "$INPUT_DIR"
 cp "$JAR_FILE" "$INPUT_DIR/"
 echo "Input dir (JAR only): $INPUT_DIR"
 
-# ---- Step 4: Prepare ICNS icon ----
+# ============================================================================
+# Step 4: Prepare ICNS icon
+# ============================================================================
 echo ""
 echo "=== Step 4: Preparing app icon ==="
-ICONSET_DIR="/tmp/jmcl-iconset.$$"
 ICNS_FILE="/tmp/jmcl-$APP_VERSION.icns"
-mkdir -p "$ICONSET_DIR"
 
 if [ -f "$ICON_PNG" ]; then
     echo "Converting PNG to ICNS..."
-    # Resize to 256x256 and convert to ICNS format using sips
     ICNS_TMP_PNG="/tmp/jmcl-icon-256-$$.png"
     if sips -z 256 256 "$ICON_PNG" --out "$ICNS_TMP_PNG" &>/dev/null \
         && sips -s format icns "$ICNS_TMP_PNG" --out "$ICNS_FILE" &>/dev/null; then
@@ -138,19 +157,55 @@ if [ -f "$ICON_PNG" ]; then
         ICNS_FILE=""
     fi
     rm -f "$ICNS_TMP_PNG"
-    rm -rf "$ICONSET_DIR"
     echo "Icon: ${ICNS_FILE:-"(default)"}"
 else
     echo "WARNING: Icon not found at $ICON_PNG, using default"
     ICNS_FILE=""
 fi
 
-# ---- Step 5: jpackage ----
+# ============================================================================
+# Step 4.5: Download JavaFX modules for the runtime (fixes dock bounce)
+# ============================================================================
 echo ""
-echo "=== Step 5: Packaging with jpackage ==="
+echo "=== Step 4.5: Downloading JavaFX modules ==="
+
+JAVAFX_VERSION="21.0.8"
+
+# Detect platform classifier for JavaFX native jars
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    JAVAFX_CLASSIFIER="mac-aarch64"
+else
+    JAVAFX_CLASSIFIER="mac"
+fi
+
+JAVAFX_MODULES=("javafx-base" "javafx-graphics" "javafx-controls" "javafx-web" "javafx-media")
+JAVAFX_JARS=""
+
+for module in "${JAVAFX_MODULES[@]}"; do
+    JAR_NAME="${module}-${JAVAFX_VERSION}-${JAVAFX_CLASSIFIER}.jar"
+    if [ ! -f "$INPUT_DIR/$JAR_NAME" ]; then
+        echo "  Downloading $JAR_NAME..."
+        curl -sL -o "$INPUT_DIR/$JAR_NAME" \
+            "https://repo1.maven.org/maven2/org/openjfx/${module}/${JAVAFX_VERSION}/${JAR_NAME}"
+    else
+        echo "  $JAR_NAME already present"
+    fi
+    if [ -z "$JAVAFX_JARS" ]; then
+        JAVAFX_JARS="\$APPDIR/$JAR_NAME"
+    else
+        JAVAFX_JARS="$JAVAFX_JARS:\$APPDIR/$JAR_NAME"
+    fi
+done
+
+# ============================================================================
+# Step 5: Create app-image via jpackage
+# ============================================================================
+echo ""
+echo "=== Step 5: Creating .app bundle (app-image) ==="
 mkdir -p "$DEST_DIR"
 
-# Collect all --add-opens from the Gradle build config
+# Collect JVM options
 ADD_OPENS=(
     "--add-opens=java.base/java.lang=ALL-UNNAMED"
     "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
@@ -178,9 +233,8 @@ ADD_OPENS=(
     "-Xmx1g"
 )
 
-# Build jpackage arguments
 JPACKAGE_ARGS=(
-    --type dmg
+    --type app-image
     --name "$APP_NAME"
     --app-version "$APP_VERSION"
     --vendor "$VENDOR"
@@ -204,8 +258,14 @@ for opt in "${ADD_OPENS[@]}"; do
     JPACKAGE_ARGS+=(--java-options "$opt")
 done
 
-echo "Running jpackage..."
-echo "  Output: $DEST_DIR/${APP_NAME}-${APP_VERSION}.dmg"
+APP_BUNDLE="$DEST_DIR/$APP_NAME.app"
+if [ -d "$APP_BUNDLE" ]; then
+    echo "Removing previous .app bundle..."
+    rm -rf "$APP_BUNDLE"
+fi
+
+echo "Running jpackage (app-image)..."
+echo "  Output: $APP_BUNDLE"
 echo ""
 
 # Retry loop for macOS posix_spawn race condition
@@ -233,10 +293,54 @@ if [ "$JPACKAGE_EXIT" -ne 0 ]; then
     exit "$JPACKAGE_EXIT"
 fi
 
+if [ ! -d "$APP_BUNDLE" ]; then
+    echo "ERROR: .app bundle was not created at $APP_BUNDLE"
+    exit 1
+fi
+echo ".app bundle created: $APP_BUNDLE"
+
+# ============================================================================
+# Step 6: Generate DMG background
+# ============================================================================
+echo ""
+echo "=== Step 6: Generating DMG background ==="
+
+BG_SCRIPT="$LICENSES_DIR/generate_dmg_background.py"
+BG_OUTPUT="$LICENSES_DIR/dmg_background.png"
+if [ -f "$BG_SCRIPT" ]; then
+    python3 "$BG_SCRIPT" "$BG_OUTPUT"
+else
+    echo "  WARNING: Background generator not found, using default"
+fi
+
+# ============================================================================
+# Step 7: Create DMG with dmgbuild (includes multi-language license)
+# ============================================================================
+echo ""
+echo "=== Step 7: Creating DMG with dmgbuild ==="
+
+DMG_FINAL="$DEST_DIR/${APP_NAME}-${APP_VERSION}.dmg"
+DMGBUILD_SETTINGS="$LICENSES_DIR/dmgbuild_settings.py"
+
+# Remove previous DMG
+rm -f "$DMG_FINAL"
+
+# Run dmgbuild
+"$DMGBUILD" \
+    -D app="$APP_BUNDLE" \
+    -D version="$APP_VERSION" \
+    -D licenses_dir="$LICENSES_DIR" \
+    -s "$DMGBUILD_SETTINGS" \
+    "$APP_NAME" \
+    "$DMG_FINAL"
+
 echo ""
 echo "=== BUILD SUCCESSFUL ==="
-echo "Package: $DEST_DIR/${APP_NAME}-${APP_VERSION}.dmg"
+echo "Package: $DMG_FINAL"
 echo ""
+
+# Show output
+ls -lh "$DMG_FINAL"
 
 # Clean up temp files
 rm -f "$ICNS_FILE" 2>/dev/null

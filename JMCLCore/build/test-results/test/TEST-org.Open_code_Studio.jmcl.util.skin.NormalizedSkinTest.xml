@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.Open_code_Studio.jmcl.util.skin.NormalizedSkinTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.444Z" hostname="cangcangdeMacBook-Air.local" time="0.018">
+  <properties/>
+  <testcase name="testIsSlim()" classname="org.Open_code_Studio.jmcl.util.skin.NormalizedSkinTest" time="0.018"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

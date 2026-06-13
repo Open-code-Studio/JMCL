@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.Open_code_Studio.jmcl.util.io.NetworkUtilsTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.334Z" hostname="cangcangdeMacBook-Air.local" time="0.085">
-  <properties/>
-  <testcase name="testGetEncodingFromUrl()" classname="org.Open_code_Studio.jmcl.util.io.NetworkUtilsTest" time="0.0"/>
-  <testcase name="testIsLoopbackAddress()" classname="org.Open_code_Studio.jmcl.util.io.NetworkUtilsTest" time="0.085"/>
-  <testcase name="testEncodeLocation()" classname="org.Open_code_Studio.jmcl.util.io.NetworkUtilsTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

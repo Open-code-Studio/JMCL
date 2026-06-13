@@ -502,8 +502,11 @@ public final class MainPage extends StackPane implements DecoratorPage {
                     if (latestRelease == null) return;
 
                     String versionId = latestRelease.gameVersion();
-                    String lastShown = (String) config().getShownTips().get(MINECRAFT_CHANGELOG);
-                    if (versionId.equals(lastShown)) return;
+                    // In dev mode, always show the changelog regardless of shownTips cache
+                    if (!Metadata.isDev()) {
+                        String lastShown = (String) config().getShownTips().get(MINECRAFT_CHANGELOG);
+                        if (versionId.equals(lastShown)) return;
+                    }
 
                     GameRemoteVersionInfo finalVersion = latestRelease;
 
@@ -575,7 +578,10 @@ public final class MainPage extends StackPane implements DecoratorPage {
         JFXButton btnHide = new JFXButton();
         btnHide.setOnAction(e -> {
             announcementBox.getChildren().remove(card);
-            config().getShownTips().put(MINECRAFT_CHANGELOG, versionId);
+            // In dev mode, don't persist so changelog shows on next restart
+            if (!Metadata.isDev()) {
+                config().getShownTips().put(MINECRAFT_CHANGELOG, versionId);
+            }
         });
         btnHide.getStyleClass().add("announcement-close-button");
         btnHide.setGraphic(SVG.CLOSE.createIcon(20));

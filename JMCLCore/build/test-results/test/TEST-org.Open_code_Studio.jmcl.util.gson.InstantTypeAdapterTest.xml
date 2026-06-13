@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.Open_code_Studio.jmcl.util.gson.InstantTypeAdapterTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:19.258Z" hostname="cangcangdeMacBook-Air.local" time="0.003">
-  <properties/>
-  <testcase name="testSerialize()" classname="org.Open_code_Studio.jmcl.util.gson.InstantTypeAdapterTest" time="0.0"/>
-  <testcase name="testDeserialize()" classname="org.Open_code_Studio.jmcl.util.gson.InstantTypeAdapterTest" time="0.003"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

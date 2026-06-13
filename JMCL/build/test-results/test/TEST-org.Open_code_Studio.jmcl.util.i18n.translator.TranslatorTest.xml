@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.Open_code_Studio.jmcl.util.i18n.translator.TranslatorTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-06-13T03:19:07.940Z" hostname="cangcangdeMacBook-Air.local" time="0.001">
-  <properties/>
-  <testcase name="testYearToLZH()" classname="org.Open_code_Studio.jmcl.util.i18n.translator.TranslatorTest" time="0.0"/>
-  <testcase name="testHourToLZH()" classname="org.Open_code_Studio.jmcl.util.i18n.translator.TranslatorTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

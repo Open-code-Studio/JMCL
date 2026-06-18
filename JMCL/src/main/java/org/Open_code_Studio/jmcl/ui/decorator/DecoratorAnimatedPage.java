@@ -17,6 +17,7 @@
  */
 package org.Open_code_Studio.jmcl.ui.decorator;
 
+import javafx.beans.binding.Bindings;
 import javafx.scene.Node;
 import javafx.scene.control.Control;
 import javafx.scene.control.Skin;
@@ -86,6 +87,9 @@ public class DecoratorAnimatedPage extends Control {
             control.leftCenter.setMinWidth(260);
             control.leftCenter.setMaxWidth(400);
             HBox.setHgrow(control.leftCenter, Priority.SOMETIMES);
+            // Hide leftCenter when it has no children to avoid empty space on pages that don't use it
+            control.leftCenter.visibleProperty().bind(Bindings.isNotEmpty(control.leftCenter.getChildren()));
+            control.leftCenter.managedProperty().bind(control.leftCenter.visibleProperty());
             centerContainer.getChildren().add(control.leftCenter);
             
             HBox.setHgrow(control.center, Priority.ALWAYS);

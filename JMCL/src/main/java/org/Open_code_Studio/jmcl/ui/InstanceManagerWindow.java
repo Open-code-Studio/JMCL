@@ -202,13 +202,12 @@ public final class InstanceManagerWindow extends Stage {
 
     /// Starts a background thread that periodically detects the Minecraft game window
     /// and repositions this manager next to it.
-    ///
-    /// On macOS, uses the Accessibility API via `osascript` to query window bounds by PID.
-    /// When the game window is not found yet, the manager stays at its initial position.
     private void startWindowTracker() {
         long pid = process.getProcess().pid();
 
         trackerThread = Lang.thread(() -> {
+            double lastX = Double.NaN, lastY = Double.NaN;
+
             while (process.isRunning()) {
                 try {
                     String[] bounds = getGameWindowBounds(pid);
@@ -216,10 +215,17 @@ public final class InstanceManagerWindow extends Stage {
                         double wx = Double.parseDouble(bounds[0]);
                         double wy = Double.parseDouble(bounds[1]);
                         double ww = Double.parseDouble(bounds[2]);
-                        Platform.runLater(() -> {
-                            setX(wx + ww + 4);
-                            setY(wy + 40);
-                        });
+                        double newX = wx + ww + 4;
+                        double newY = wy + 40;
+                        if (newX != lastX || newY != lastY) {
+                            lastX = newX;
+                            lastY = newY;
+                            double fx = newX, fy = newY;
+                            Platform.runLater(() -> {
+                                setX(fx);
+                                setY(fy);
+                            });
+                        }
                     }
                 } catch (Exception ignored) {
                     // game window not ready yet, keep current position
@@ -227,7 +233,7 @@ public final class InstanceManagerWindow extends Stage {
 
                 try {
                     //noinspection BusyWait
-                    Thread.sleep(1);
+                    Thread.sleep(100);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -236,32 +242,159 @@ public final class InstanceManagerWindow extends Stage {
         }, "GameWindowTracker-" + versionId, true);
     }
 
-    /// Queries the game window bounds using macOS Accessibility API.
+    /// Queries the game window bounds for the given process ID.
     ///
     /// @param pid the game process ID.
     /// @return an array of [x, y, width], or null if the window isn't found.
     private static @Nullable String[] getGameWindowBounds(long pid) throws IOException {
-        if (OperatingSystem.CURRENT_OS != OperatingSystem.MACOS)
-            return null;
+        return switch (OperatingSystem.CURRENT_OS) {
+            case MACOS -> getMacOSWindowBounds(pid);
+            case WINDOWS -> getWindowsWindowBounds(pid);
+            case LINUX, FREEBSD -> getLinuxWindowBounds(pid);
+            default -> null;
+        };
+    }
 
-        String script = "tell application \"System Events\" to get {position, size} of first window of (first process whose unix id is " + pid + ")";
-        Process p = new ProcessBuilder("osascript", "-e", script).start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+    /// macOS: uses `osascript` with System Events to find the game window by PID.
+    /// Tries to locate the main window first, falls back to the first available window.
+    private static @Nullable String[] getMacOSWindowBounds(long pid) throws IOException {
+        String script =
+            "tell application \"System Events\"\n" +
+            "  set procList to every process whose unix id is " + pid + "\n" +
+            "  if (count of procList) = 0 then return \"\"\n" +
+            "  set proc to item 1 of procList\n" +
+            "  set winList to every window of proc\n" +
+            "  if (count of winList) = 0 then return \"\"\n" +
+            "  set target to item 1 of winList\n" +
+            "  repeat with w in winList\n" +
+            "    try\n" +
+            "      if value of attribute \"AXMain\" of w is true then\n" +
+            "        set target to w\n" +
+            "        exit repeat\n" +
+            "      end if\n" +
+            "    end try\n" +
+            "  end repeat\n" +
+            "  try\n" +
+            "    set pos to position of target\n" +
+            "    set sz to size of target\n" +
+            "    return (item 1 of pos as string) & \",\" & (item 2 of pos as string) & \",\" & (item 1 of sz as string)\n" +
+            "  on error\n" +
+            "    return \"\"\n" +
+            "  end try\n" +
+            "end tell";
 
-        if (output.isEmpty() || output.startsWith("error"))
-            return null;
+        String output = runScript("osascript", "-e", script);
+        if (output.isEmpty()) return null;
 
-        // Parse "{{x, y}, {width, height}}"
-        output = output.replace("{", "").replace("}", "");
         String[] parts = output.split(",");
-        if (parts.length >= 4) {
-            return new String[]{
-                    parts[0].trim(),
-                    parts[1].trim(),
-                    parts[2].trim()
-            };
+        if (parts.length >= 3) {
+            try {
+                // validate numeric
+                Double.parseDouble(parts[0].trim());
+                Double.parseDouble(parts[1].trim());
+                Double.parseDouble(parts[2].trim());
+                return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
         }
         return null;
+    }
+
+    /// Windows: uses PowerShell with C# P/Invoke to EnumWindows and GetWindowRect.
+    private static @Nullable String[] getWindowsWindowBounds(long pid) throws IOException {
+        String script =
+            "$pid = " + pid + ";\n" +
+            "$code = @'\n" +
+            "using System;\n" +
+            "using System.Runtime.InteropServices;\n" +
+            "public struct R { public int L,T,Rg,B; }\n" +
+            "public class W {\n" +
+            "  public delegate bool E(IntPtr h, IntPtr l);\n" +
+            "  [DllImport(\"user32\")] public static extern bool EnumWindows(E e, IntPtr l);\n" +
+            "  [DllImport(\"user32\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);\n" +
+            "  [DllImport(\"user32\")] public static extern bool GetWindowRect(IntPtr h, out R r);\n" +
+            "  [DllImport(\"user32\")] public static extern bool IsWindowVisible(IntPtr h);\n" +
+            "  public static IntPtr r; public static uint tp;\n" +
+            "  public static bool C(IntPtr h, IntPtr l) {\n" +
+            "    W.GetWindowThreadProcessId(h, out tp);\n" +
+            "    if(tp==" + pid + " && W.IsWindowVisible(h)){r=h; return false;}\n" +
+            "    return true;\n" +
+            "  }\n" +
+            "}\n" +
+            "'@;\n" +
+            "Add-Type -TypeDefinition $code -ReferencedAssemblies System.Runtime.InteropServices;\n" +
+            "[W]::EnumWindows([W+E]::new([W]::C), [IntPtr]::Zero) | Out-Null;\n" +
+            "if([W]::r -ne [IntPtr]::Zero){\n" +
+            "  $rect = New-Object R;\n" +
+            "  [W]::GetWindowRect([W]::r, [ref]$rect);\n" +
+            "  Write-Output \"$($rect.L),$($rect.T),$($rect.Rg-$rect.L)\";\n" +
+            "}\n";
+
+        String output = runScript("powershell", "-NoProfile", "-Command", script);
+        if (output.isEmpty()) return null;
+
+        String[] parts = output.split(",");
+        if (parts.length >= 3) {
+            try {
+                Double.parseDouble(parts[0].trim());
+                Double.parseDouble(parts[1].trim());
+                Double.parseDouble(parts[2].trim());
+                return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /// Linux/FreeBSD: uses `xdotool` to find windows by PID.
+    private static @Nullable String[] getLinuxWindowBounds(long pid) throws IOException {
+        // try xdotool first
+        Process p = new ProcessBuilder("xdotool", "search", "--pid", String.valueOf(pid)).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        int exit;
+        try { exit = p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+
+        if (exit != 0 || output.isEmpty()) return null;
+
+        // get geometry of the first window
+        String wid = output.split("\\R")[0].trim();
+        if (wid.isEmpty()) return null;
+
+        Process p2 = new ProcessBuilder("xdotool", "getwindowgeometry", "--shell", wid).start();
+        String geo = new String(p2.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        try { p2.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+
+        String x = null, y = null, w = null;
+        for (String line : geo.split("\\R")) {
+            line = line.trim();
+            if (line.startsWith("X=")) x = line.substring(2);
+            else if (line.startsWith("Y=")) y = line.substring(2);
+            else if (line.startsWith("WIDTH=")) w = line.substring(6);
+        }
+        if (x != null && y != null && w != null) {
+            return new String[]{x, y, w};
+        }
+        return null;
+    }
+
+    /// Runs a script process and returns trimmed stdout, or empty string on failure.
+    private static String runScript(String... cmd) {
+        try {
+            Process p = new ProcessBuilder(cmd).start();
+            String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            // consume stderr to avoid deadlock
+            p.getErrorStream().readAllBytes();
+            try {
+                p.waitFor();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return output;
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     /// Starts a background thread that monitors the game process.

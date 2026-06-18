@@ -19,6 +19,7 @@ package org.Open_code_Studio.jmcl.ui.main;
 
 import com.jfoenix.controls.JFXPopup;
 import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.beans.binding.Bindings;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
@@ -246,6 +247,10 @@ public class RootPage extends DecoratorAnimatedPage implements DecoratorPage {
             leftCenterContent.getStyleClass().add("left-center-content");
             leftCenterContent.getChildren().addAll(accountListItem, skinViewPane);
             VBox.setVgrow(skinViewPane, Priority.ALWAYS);
+
+            // Hide skin preview when not on the main page (RootPage removed from Navigator)
+            skinViewPane.visibleProperty().bind(Bindings.isNotNull(control.parentProperty()));
+            skinViewPane.managedProperty().bind(skinViewPane.visibleProperty());
 
             sideBar.getStyleClass().addAll("card", "elev-2");
             skinViewPane.getStyleClass().addAll("skin-view-pane");

@@ -28,6 +28,7 @@ import javafx.scene.control.TreeView;
 import javafx.scene.control.skin.TreeViewSkin;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import org.glavo.nbt.NBTElement;
 import org.glavo.nbt.tag.Tag;
 import org.Open_code_Studio.jmcl.task.Schedulers;
@@ -40,6 +41,7 @@ import org.Open_code_Studio.jmcl.ui.construct.SpinnerPane;
 import org.Open_code_Studio.jmcl.ui.decorator.DecoratorPage;
 import org.Open_code_Studio.jmcl.util.StringUtils;
 import org.Open_code_Studio.jmcl.util.io.FileUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -57,6 +59,15 @@ public final class NBTEditorPage extends SpinnerPane implements DecoratorPage {
     private final NBTFileType type;
 
     private final BorderPane root = new BorderPane();
+
+    /// The root NBT element read from file, kept to enable saving.
+    private @Nullable NBTElement rootElement;
+
+    /// The TreeView displaying the NBT structure.
+    private @Nullable TreeView<NBTElement> treeView;
+
+    /// The root tree item of the tree view.
+    private @Nullable NBTTreeItem rootTreeItem;
 
     public NBTEditorPage(Path file) throws IOException {
         getStyleClass().add("gray-background");
@@ -98,8 +109,11 @@ public final class NBTEditorPage extends SpinnerPane implements DecoratorPage {
                     if (exception == null) {
                         setLoading(false);
 
-                        NBTTreeItem root = new NBTTreeItem(result, FileUtils.getName(file));
-                        var view = new TreeView<>(root) {
+                        this.rootElement = result;
+                        NBTTreeItem rootItem = new NBTTreeItem(result, FileUtils.getName(file));
+                        this.rootTreeItem = rootItem;
+
+                        var view = new TreeView<>(rootItem) {
                             @Override
                             protected Skin<?> createDefaultSkin() {
                                 return new TreeViewSkin<>(this) {
@@ -115,11 +129,16 @@ public final class NBTEditorPage extends SpinnerPane implements DecoratorPage {
                             if (item.getValue() instanceof Tag && item.getChildren().size() == 1)
                                 item.getChildren().get(0).setExpanded(true);
                         });
-                        root.setExpanded(true);
+                        rootItem.setExpanded(true);
+                        this.treeView = view;
 
-                        BorderPane.setMargin(view, new Insets(10));
+                        VBox wrapper = new VBox();
+                        wrapper.getChildren().setAll(actions, view);
+                        VBox.setVgrow(view, javafx.scene.layout.Priority.ALWAYS);
+
+                        BorderPane.setMargin(wrapper, new Insets(10));
                         onEscPressed(view, cancelButton::fire);
-                        this.root.setCenter(view);
+                        this.root.setCenter(wrapper);
                     } else {
                         LOG.warning("Fail to open nbt file", exception);
                         Controllers.dialog(i18n("nbt.open.failed") + "\n\n" + StringUtils.getStackTrace(exception), null, MessageDialogPane.MessageType.WARNING, cancelButton::fire);
@@ -127,8 +146,13 @@ public final class NBTEditorPage extends SpinnerPane implements DecoratorPage {
                 }).start();
     }
 
+    /// Saves the current NBT element tree back to the file.
     public void save() throws IOException {
-        // TODO
+        if (rootElement == null) {
+            throw new IOException("No NBT data loaded");
+        }
+        type.write(file, rootElement);
+        LOG.info("NBT file saved: " + file);
     }
 
     @Override

@@ -25,7 +25,9 @@ import org.Open_code_Studio.jmcl.util.io.FileUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.zip.GZIPOutputStream;
 
 /// @author Glavo
 public enum NBTFileType {
@@ -73,5 +75,37 @@ public enum NBTFileType {
     }
 
     public abstract NBTElement read(Path file) throws IOException;
+
+    /// Writes the NBT element back to the specified file path.
+    ///
+    /// @param file    the target file path.
+    /// @param element the NBT element to write.
+    public void write(Path file, NBTElement element) throws IOException {
+        switch (this) {
+            case COMPRESSED -> {
+                if (element instanceof Tag tag) {
+                    writeCompressed(file, tag);
+                } else {
+                    throw new IOException("Cannot write " + element.getClass().getSimpleName() + " as compressed NBT");
+                }
+            }
+            case ANVIL, REGION -> {
+                if (element instanceof ChunkRegion region) {
+                    NBTCodec.of().writeRegion(file, region);
+                } else {
+                    throw new IOException("Cannot write " + element.getClass().getSimpleName() + " as region NBT");
+                }
+            }
+        }
+    }
+
+    /// Writes a Tag to a GZIP-compressed NBT file, saved safely via atomic rename.
+    private void writeCompressed(Path file, Tag tag) throws IOException {
+        FileUtils.saveSafely(file, os -> {
+            try (OutputStream gos = new GZIPOutputStream(os)) {
+                NBTCodec.of().writeTag(gos, tag);
+            }
+        });
+    }
 
 }

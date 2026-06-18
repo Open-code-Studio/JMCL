@@ -81,6 +81,8 @@ import org.Open_code_Studio.jmcl.util.platform.OperatingSystem;
 import org.Open_code_Studio.jmcl.util.platform.Platform;
 import org.Open_code_Studio.jmcl.util.versioning.GameVersionNumber;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.IOException;
 import java.net.URI;
 import java.time.ZoneId;
@@ -510,12 +512,12 @@ public final class MainPage extends StackPane implements DecoratorPage {
 
                     GameRemoteVersionInfo finalVersion = latestRelease;
 
-                    // Also fetch the wiki page image for this version
-                    String wikiApiUrl = "https://minecraft.wiki/api.php?action=query"
+                    // Fetch the wiki banner image for this version
+                    String wikiImageUrl = "https://minecraft.wiki/api.php?action=query"
                             + "&titles=Java_Edition_" + versionId
-                            + "&prop=pageimages&format=json&pithumbsize=640";
+                            + "&prop=pageimages&format=json&pithumbsize=960";
 
-                    new GetTask(URI.create(wikiApiUrl))
+                    new GetTask(URI.create(wikiImageUrl))
                             .whenComplete(Schedulers.javafx(), (json, imgException) -> {
                                 String imageUrl = null;
                                 if (imgException == null && json != null) {
@@ -546,7 +548,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
 
     /// Creates and adds a changelog announcement card for a Mojang game version.
     /// The card is added to the scrollable announcement area alongside existing content.
-    private void createChangelogCard(GameRemoteVersionInfo version, String imageUrl) {
+    /// @param imageUrl optional wiki banner image URL; if null, a programmatic gradient banner is used
+    private void createChangelogCard(GameRemoteVersionInfo version, @Nullable String imageUrl) {
         String versionId = version.gameVersion();
         String typeName = i18n("version.game.release");
         String dateStr = DATE_FORMATTER.format(version.releaseTime());
@@ -554,11 +557,10 @@ public final class MainPage extends StackPane implements DecoratorPage {
 
         VBox card = new VBox();
 
-        // ── Image (if available) ───────────────────────────────────────────
+        // ── Banner (wiki image if available, otherwise gradient fallback) ──
         if (imageUrl != null) {
             ImageView imageView = new ImageView(imageUrl);
             imageView.setPreserveRatio(true);
-            // Size image to fill card width, capped at 160px height to avoid taking too much space
             imageView.fitWidthProperty().bind(card.widthProperty());
             imageView.setFitHeight(160);
             javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
@@ -568,6 +570,26 @@ public final class MainPage extends StackPane implements DecoratorPage {
             clip.heightProperty().bind(imageView.fitHeightProperty());
             imageView.setClip(clip);
             card.getChildren().add(imageView);
+        } else {
+            // Fallback: programmatic Minecraft-themed gradient banner
+            StackPane banner = new StackPane();
+            banner.setPrefHeight(120);
+            banner.setMinHeight(120);
+            banner.setMaxHeight(120);
+            banner.setStyle("-fx-background-color: linear-gradient(to bottom, "
+                    + "#5a8f3f 0%, #7a8f3b 30%, #8b6f3b 60%, #6b4a2a 100%);");
+            Label bannerTitle = new Label(i18n("minecraft.changelog.title", versionId));
+            bannerTitle.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: white;");
+            StackPane.setAlignment(bannerTitle, Pos.BOTTOM_LEFT);
+            StackPane.setMargin(bannerTitle, new Insets(0, 0, 16, 20));
+            banner.getChildren().add(bannerTitle);
+            javafx.scene.shape.Rectangle bannerClip = new javafx.scene.shape.Rectangle();
+            bannerClip.setArcWidth(16);
+            bannerClip.setArcHeight(16);
+            bannerClip.widthProperty().bind(banner.widthProperty());
+            bannerClip.heightProperty().bind(banner.heightProperty());
+            banner.setClip(bannerClip);
+            card.getChildren().add(banner);
         }
 
         // ── Title bar ──────────────────────────────────────────────────────

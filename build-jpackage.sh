@@ -148,15 +148,34 @@ ICNS_FILE="/tmp/jmcl-$APP_VERSION.icns"
 
 if [ -f "$ICON_PNG" ]; then
     echo "Converting PNG to ICNS..."
-    ICNS_TMP_PNG="/tmp/jmcl-icon-256-$$.png"
-    if sips -z 256 256 "$ICON_PNG" --out "$ICNS_TMP_PNG" &>/dev/null \
-        && sips -s format icns "$ICNS_TMP_PNG" --out "$ICNS_FILE" &>/dev/null; then
-        echo "  ICNS created: $ICNS_FILE"
+    ICONSET_DIR="/tmp/jmcl-iconset-$$.iconset"
+    mkdir -p "$ICONSET_DIR"
+
+    # Generate all required icon sizes for a proper multi-resolution ICNS
+    for size in 16 32 128 256 512; do
+        sips -z $size $size "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}.png" &>/dev/null
+        # Retina @2x sizes (except 512 which would be 1024)
+        if [ "$size" -le 256 ]; then
+            sips -z $((size * 2)) $((size * 2)) "$ICON_PNG" --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" &>/dev/null
+        fi
+    done
+
+    # Convert iconset to ICNS using iconutil
+    if iconutil -c icns -o "$ICNS_FILE" "$ICONSET_DIR" &>/dev/null; then
+        echo "  Multi-resolution ICNS created: $ICNS_FILE"
     else
-        echo "WARNING: ICNS conversion failed. jpackage will use a default icon."
-        ICNS_FILE=""
+        echo "WARNING: ICNS conversion via iconutil failed, falling back to sips..."
+        ICNS_TMP_PNG="/tmp/jmcl-icon-256-$$.png"
+        if sips -z 256 256 "$ICON_PNG" --out "$ICNS_TMP_PNG" &>/dev/null \
+            && sips -s format icns "$ICNS_TMP_PNG" --out "$ICNS_FILE" &>/dev/null; then
+            echo "  ICNS created (single size): $ICNS_FILE"
+        else
+            echo "WARNING: ICNS conversion failed. jpackage will use a default icon."
+            ICNS_FILE=""
+        fi
+        rm -f "$ICNS_TMP_PNG"
     fi
-    rm -f "$ICNS_TMP_PNG"
+    rm -rf "$ICONSET_DIR"
     echo "Icon: ${ICNS_FILE:-"(default)"}"
 else
     echo "WARNING: Icon not found at $ICON_PNG, using default"

@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Created-By: Copyright(c) 2026 Open Code Studio.
+Main-Class: org.Open_code_Studio.jmcl.craft.Launcher
+Multi-Release: true
+

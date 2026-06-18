@@ -1,0 +1,451 @@
+/**
+ * JMCL
+ * Copyright (C) 2026  OCS
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/* =============================================================================
+ * Craft Launcher — MD3 Theme
+ * ============================================================================= */
+
+/* ---- Root variables ---- */
+.craft-root {
+    -craft-primary: #1565C0;
+    -craft-primary-container: #D1E4FF;
+    -craft-on-primary: #FFFFFF;
+    -craft-on-primary-container: #001D36;
+    -craft-secondary: #545F71;
+    -craft-surface: #FDFBFF;
+    -craft-surface-container: #F0F0F0;
+    -craft-surface-container-high: #E6E6E6;
+    -craft-sidebar-bg: #1A1C1E;
+    -craft-sidebar-hover: #2B2D30;
+    -craft-sidebar-active: #37393E;
+    -craft-sidebar-text: #E3E2E6;
+    -craft-sidebar-text-active: #FFFFFF;
+    -craft-on-surface: #1A1C1E;
+    -craft-on-surface-variant: #44474E;
+    -craft-outline: #74777F;
+    -craft-error: #BA1A1A;
+    -craft-shadow: rgba(0, 0, 0, 0.2);
+}
+
+/* ---- Layout ---- */
+.craft-root {
+    -fx-background-color: -craft-surface-container;
+}
+
+/* ---- Sidebar ---- */
+.craft-sidebar {
+    -fx-background-color: -craft-sidebar-bg;
+    -fx-pref-width: 240px;
+    -fx-min-width: 240px;
+    -fx-max-width: 240px;
+    -fx-padding: 8 0 8 0;
+    -fx-spacing: 2;
+}
+
+.craft-sidebar-logo {
+    -fx-padding: 16 20 24 20;
+    -fx-alignment: center-left;
+}
+
+.craft-sidebar-logo Text {
+    -fx-fill: -craft-sidebar-text-active;
+    -fx-font-size: 20px;
+    -fx-font-weight: 700;
+}
+
+.craft-sidebar-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999px;
+    -fx-padding: 10 20;
+    -fx-margin: 2 8;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+    -fx-spacing: 12;
+}
+
+.craft-sidebar-btn:hover {
+    -fx-background-color: -craft-sidebar-hover;
+}
+
+.craft-sidebar-btn Text,
+.craft-sidebar-btn .label {
+    -fx-fill: -craft-sidebar-text;
+    -fx-text-fill: -craft-sidebar-text;
+    -fx-font-size: 14px;
+    -fx-font-weight: 500;
+}
+
+.craft-sidebar-btn .craft-nav-icon {
+    -fx-fill: -craft-sidebar-text;
+}
+
+.craft-sidebar-btn.active {
+    -fx-background-color: -craft-sidebar-active;
+}
+
+.craft-sidebar-btn.active Text,
+.craft-sidebar-btn.active .label {
+    -fx-fill: -craft-sidebar-text-active;
+    -fx-text-fill: -craft-sidebar-text-active;
+    -fx-font-weight: 600;
+}
+
+.craft-sidebar-btn.active .craft-nav-icon {
+    -fx-fill: -craft-sidebar-text-active;
+}
+
+.craft-sidebar-account {
+    -fx-padding: 16 20;
+    -fx-alignment: center-left;
+    -fx-spacing: 12;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+    -fx-background-color: transparent;
+}
+
+.craft-sidebar-account:hover {
+    -fx-background-color: -craft-sidebar-hover;
+}
+
+.craft-sidebar-account Text {
+    -fx-fill: -craft-sidebar-text;
+    -fx-font-size: 13px;
+}
+
+/* ---- Content area ---- */
+.craft-content {
+    -fx-background-color: -craft-surface-container;
+    -fx-padding: 24;
+}
+
+/* ---- Cards ---- */
+.craft-card {
+    -fx-background-color: -craft-surface;
+    -fx-background-radius: 16px;
+    -fx-effect: dropshadow(gaussian, -craft-shadow, 8, 0, 0, 2);
+    -fx-padding: 20;
+}
+
+.craft-card-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -craft-on-surface-variant;
+}
+
+.craft-card-value {
+    -fx-font-size: 32px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -craft-on-surface;
+}
+
+.craft-card-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: -craft-on-surface-variant;
+    -fx-padding: 4 0 0 0;
+}
+
+/* ---- Buttons ---- */
+.craft-btn-primary {
+    -fx-background-color: -craft-primary;
+    -fx-text-fill: -craft-on-primary;
+    -fx-background-radius: 999px;
+    -fx-padding: 10 24;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+}
+
+.craft-btn-primary:hover {
+    -fx-background-color: derive(-craft-primary, -10%);
+}
+
+.craft-btn-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: -craft-primary;
+    -fx-background-radius: 999px;
+    -fx-padding: 10 24;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+    -fx-border-color: -craft-outline;
+    -fx-border-width: 1;
+}
+
+.craft-btn-secondary:hover {
+    -fx-background-color: -craft-primary-container;
+}
+
+/* ---- Section titles ---- */
+.craft-section-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -craft-on-surface;
+    -fx-padding: 0 0 16 0;
+}
+
+.craft-subsection-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -craft-on-surface;
+    -fx-padding: 0 0 12 0;
+}
+
+/* ---- List items ---- */
+.craft-list-item {
+    -fx-background-color: -craft-surface;
+    -fx-background-radius: 12px;
+    -fx-padding: 14 16;
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, -craft-shadow, 4, 0, 0, 1);
+}
+
+.craft-list-item:hover {
+    -fx-background-color: -craft-surface-container-high;
+}
+
+.craft-list-item-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -craft-on-surface;
+}
+
+.craft-list-item-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: -craft-on-surface-variant;
+}
+
+.craft-list-item-info {
+    -fx-font-size: 13px;
+    -fx-text-fill: -craft-on-surface-variant;
+    -fx-alignment: center-right;
+}
+
+/* ---- Text fields ---- */
+.craft-text-field {
+    -fx-background-color: -craft-surface-container-high;
+    -fx-background-radius: 12px;
+    -fx-padding: 10 16;
+    -fx-font-size: 14px;
+    -fx-text-fill: -craft-on-surface;
+    -fx-border-width: 1;
+    -fx-border-color: transparent;
+    -fx-border-radius: 12px;
+    -fx-prompt-text-fill: -craft-on-surface-variant;
+}
+
+.craft-text-field:focused {
+    -fx-border-color: -craft-primary;
+    -fx-background-color: -craft-surface;
+}
+
+/* ---- Combo box ---- */
+.craft-combo-box {
+    -fx-background-color: -craft-surface-container-high;
+    -fx-background-radius: 12px;
+    -fx-padding: 8 12;
+    -fx-font-size: 14px;
+    -fx-text-fill: -craft-on-surface;
+    -fx-border-width: 1;
+    -fx-border-color: transparent;
+    -fx-border-radius: 12px;
+}
+
+.craft-combo-box:focused {
+    -fx-border-color: -craft-primary;
+}
+
+/* ---- Tabs ---- */
+.craft-tab-pane {
+    -fx-background-color: transparent;
+}
+
+.craft-tab-header {
+    -fx-padding: 0 0 16 0;
+    -fx-spacing: 4;
+}
+
+.craft-tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999px;
+    -fx-padding: 8 20;
+    -fx-font-size: 14px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -craft-on-surface-variant;
+    -fx-cursor: hand;
+    -fx-border-width: 1;
+    -fx-border-color: transparent;
+    -fx-border-radius: 999px;
+}
+
+.craft-tab:hover {
+    -fx-background-color: -craft-surface-container-high;
+}
+
+.craft-tab.active {
+    -fx-background-color: -craft-primary-container;
+    -fx-text-fill: -craft-on-primary-container;
+    -fx-font-weight: 600;
+}
+
+/* ---- Scroll pane ---- */
+.craft-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+}
+
+.craft-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.craft-scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+}
+
+.craft-scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: -craft-outline;
+    -fx-background-radius: 4;
+}
+
+.craft-scroll-pane .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.craft-scroll-pane .scroll-bar:vertical .increment-button,
+.craft-scroll-pane .scroll-bar:vertical .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.craft-scroll-pane .scroll-bar:vertical .increment-arrow,
+.craft-scroll-pane .scroll-bar:vertical .decrement-arrow {
+    -fx-padding: 0;
+}
+
+/* ---- Labels ---- */
+.craft-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: -craft-on-surface;
+}
+
+.craft-label-muted {
+    -fx-font-size: 13px;
+    -fx-text-fill: -craft-on-surface-variant;
+}
+
+/* ---- Settings ---- */
+.craft-settings-group {
+    -fx-background-color: -craft-surface;
+    -fx-background-radius: 16px;
+    -fx-padding: 20;
+    -fx-spacing: 16;
+    -fx-effect: dropshadow(gaussian, -craft-shadow, 4, 0, 0, 1);
+}
+
+.craft-settings-row {
+    -fx-padding: 8 0;
+    -fx-alignment: center-left;
+    -fx-spacing: 16;
+}
+
+.craft-settings-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -craft-on-surface;
+    -fx-min-width: 140;
+}
+
+/* ---- Toggle switch ---- */
+.craft-toggle {
+    -fx-background-color: -craft-surface-container-high;
+    -fx-background-radius: 999px;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+    -fx-min-width: 44;
+    -fx-min-height: 24;
+}
+
+.craft-toggle:selected {
+    -fx-background-color: -craft-primary;
+}
+
+.craft-toggle-thumb {
+    -fx-background-color: white;
+    -fx-background-radius: 999px;
+    -fx-min-width: 18;
+    -fx-min-height: 18;
+}
+
+/* ---- Status bar ---- */
+.craft-status-bar {
+    -fx-background-color: -craft-surface-container;
+    -fx-padding: 8 16;
+    -fx-alignment: center-right;
+}
+
+.craft-status-bar Text {
+    -fx-fill: -craft-on-surface-variant;
+    -fx-font-size: 12px;
+}
+
+/* ---- Separator ---- */
+.craft-separator {
+    -fx-background-color: -craft-outline;
+    -fx-opacity: 0.3;
+    -fx-pref-height: 1;
+    -fx-max-height: 1;
+}
+
+/* ---- Dashboard stats grid ---- */
+.craft-stats-grid {
+    -fx-padding: 0;
+    -fx-hgap: 16;
+    -fx-vgap: 16;
+}
+
+/* ---- Progress bar ---- */
+.craft-progress-bar {
+    -fx-background-color: -craft-surface-container-high;
+    -fx-background-radius: 999px;
+    -fx-pref-height: 6;
+    -fx-min-height: 6;
+    -fx-max-height: 6;
+}
+
+.craft-progress-bar .bar {
+    -fx-background-color: -craft-primary;
+    -fx-background-radius: 999px;
+}
+
+/* ---- Welcome heading ---- */
+.craft-welcome {
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -craft-on-surface;
+}
+
+.craft-welcome-sub {
+    -fx-font-size: 15px;
+    -fx-text-fill: -craft-on-surface-variant;
+    -fx-padding: 4 0 24 0;
+}

@@ -1,0 +1,188 @@
+/*
+ * JMCL
+ * Copyright (C) 2026  OCS
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/* === MD3 Variables === */
+.root {
+    -play-primary: #6750A4;
+    -play-primary-container: #EADDFF;
+    -play-on-primary: #FFFFFF;
+    -play-surface: #FEF7FF;
+    -play-surface-variant: #E7E0EC;
+    -play-on-surface: #1C1B1F;
+    -play-on-surface-variant: #49454F;
+    -play-outline: #79747E;
+    -play-shadow: rgba(0, 0, 0, 0.12);
+    -play-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* === Root Container === */
+.play-root {
+    -fx-background-color: -play-surface;
+    -fx-font-family: -play-font-family;
+    -fx-padding: 0;
+}
+
+/* === Top Bar === */
+.play-top-bar {
+    -fx-background-color: -play-surface;
+    -fx-border-color: transparent transparent -play-outline transparent;
+    -fx-border-width: 0 0 1px 0;
+}
+
+/* === Card === */
+.play-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-border-radius: 16px;
+    -fx-effect: dropshadow(gaussian, -play-shadow, 8, 0.15, 0, 2);
+    -fx-padding: 24px;
+}
+
+/* === Titles === */
+.play-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -play-on-surface;
+}
+
+.play-section-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -play-on-surface-variant;
+    -fx-underline: false;
+}
+
+/* === Primary Pill Button === */
+.play-btn-primary {
+    -fx-background-color: -play-primary;
+    -fx-text-fill: -play-on-primary;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 999px;
+    -fx-border-radius: 999px;
+    -fx-padding: 12px 48px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, -play-primary, 4, 0.3, 0, 2);
+}
+
+.play-btn-primary:hover {
+    -fx-background-color: #7C6FAC;
+}
+
+.play-btn-primary:pressed {
+    -fx-background-color: #564B8A;
+}
+
+.play-btn-primary:disabled {
+    -fx-opacity: 0.6;
+    -fx-cursor: default;
+}
+
+/* === Secondary Pill Button === */
+.play-btn-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: -play-primary;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-background-radius: 999px;
+    -fx-border-radius: 999px;
+    -fx-border-color: -play-outline;
+    -fx-border-width: 1px;
+    -fx-padding: 6px 20px;
+    -fx-cursor: hand;
+}
+
+.play-btn-secondary:hover {
+    -fx-background-color: -play-primary-container;
+}
+
+/* === Text Field === */
+.play-text-field {
+    -fx-background-color: -play-surface-variant;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-padding: 8px 12px;
+    -fx-font-size: 13px;
+    -fx-text-fill: -play-on-surface;
+}
+
+.play-text-field:focused {
+    -fx-border-color: -play-primary;
+    -fx-background-color: white;
+}
+
+/* === Combo Box === */
+.play-combo-box {
+    -fx-background-color: -play-surface-variant;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-padding: 4px 8px;
+    -fx-font-size: 14px;
+}
+
+.play-combo-box:focused {
+    -fx-border-color: -play-primary;
+    -fx-background-color: white;
+}
+
+.play-combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4px 8px;
+}
+
+.play-combo-box .arrow {
+    -fx-background-color: -play-on-surface-variant;
+}
+
+/* === Spinner === */
+.play-spinner {
+    -fx-background-color: -play-surface-variant;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+}
+
+.play-spinner:focused {
+    -fx-border-color: -play-primary;
+    -fx-background-color: white;
+}
+
+.play-spinner .text-field {
+    -fx-background-color: transparent;
+    -fx-padding: 6px 8px;
+    -fx-font-size: 13px;
+}
+
+.play-spinner .increment-arrow-button,
+.play-spinner .decrement-arrow-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+}
+
+/* === Status Bar === */
+.play-status-bar {
+    -fx-background-color: -play-surface-variant;
+    -fx-text-fill: -play-on-surface-variant;
+    -fx-font-size: 12px;
+    -fx-alignment: center-left;
+}

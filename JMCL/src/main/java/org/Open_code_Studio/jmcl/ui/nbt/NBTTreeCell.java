@@ -89,7 +89,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
 
         setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && !isEmpty() && getItem() instanceof ValueTag<?>) {
-                startEdit();
+                beginEdit();
             }
         });
     }
@@ -99,7 +99,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
     }
 
     /// Starts inline editing for the current ValueTag.
-    private void startEdit() {
+    private void beginEdit() {
         if (editing) return;
         NBTElement item = getItem();
         if (!(item instanceof ValueTag<?> tag)) return;
@@ -117,7 +117,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
         textField.setOnAction(ev -> commitEdit());
         textField.setOnKeyPressed(ev -> {
             if (ev.getCode() == KeyCode.ESCAPE) {
-                cancelEdit();
+                abortEdit();
             }
         });
         textField.focusedProperty().addListener((obs, old, isFocused) -> {
@@ -166,7 +166,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
         }
 
         // Replace the old tag in its parent
-        ParentTag<?> parent = oldTag.getParent();
+        ParentTag<?> parent = oldTag.getParentTag();
         if (parent instanceof CompoundTag compound) {
             // addTag replaces existing tags with the same name
             compound.addTag(newTag);
@@ -192,7 +192,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
     }
 
     /// Cancels editing and restores the original display.
-    private void cancelEdit() {
+    private void abortEdit() {
         if (!editing) return;
         editing = false;
         NBTElement item = getItem();
@@ -215,23 +215,28 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
     private static @Nullable Tag parseTag(Tag oldTag, String text) {
         String name = oldTag.getName();
         TagType<?> type = oldTag.getType();
+        Tag tag;
 
         if (type == TagType.BYTE) {
-            return new ByteTag(name, Byte.parseByte(text));
+            tag = new ByteTag(Byte.parseByte(text));
         } else if (type == TagType.SHORT) {
-            return new ShortTag(name, Short.parseShort(text));
+            tag = new ShortTag(Short.parseShort(text));
         } else if (type == TagType.INT) {
-            return new IntTag(name, Integer.parseInt(text));
+            tag = new IntTag(Integer.parseInt(text));
         } else if (type == TagType.LONG) {
-            return new LongTag(name, parseLong(text));
+            tag = new LongTag(parseLong(text));
         } else if (type == TagType.FLOAT) {
-            return new FloatTag(name, Float.parseFloat(text));
+            tag = new FloatTag(Float.parseFloat(text));
         } else if (type == TagType.DOUBLE) {
-            return new DoubleTag(name, Double.parseDouble(text));
+            tag = new DoubleTag(Double.parseDouble(text));
         } else if (type == TagType.STRING) {
-            return new StringTag(name, text);
+            tag = new StringTag(text);
+        } else {
+            return null;
         }
-        return null;
+
+        tag.setName(name);
+        return tag;
     }
 
     /// Parses a long value, supporting both decimal and hex (0x...) formats.
@@ -282,7 +287,7 @@ public final class NBTTreeCell extends TreeCell<@Nullable NBTElement> {
 
         NBTElement value = getNBTTreeItem().getValue();
         if (value instanceof Tag tag) {
-            if (tag.getParent() instanceof ListTag<?>) {
+            if (tag.getParentTag() instanceof ListTag<?>) {
                 return Integer.toString(tag.getIndex());
             } else {
                 return tag.getName();

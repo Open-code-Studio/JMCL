@@ -277,11 +277,11 @@ for opt in "${ADD_OPENS[@]}"; do
     JPACKAGE_ARGS+=(--java-options "$opt")
 done
 
-APP_BUNDLE="$DEST_DIR/$APP_NAME.app"
-if [ -d "$APP_BUNDLE" ]; then
+if [ -d "$DEST_DIR/$APP_NAME.app" ]; then
     echo "Removing previous .app bundle..."
-    rm -rf "$APP_BUNDLE"
+    rm -rf "$DEST_DIR/$APP_NAME.app"
 fi
+APP_BUNDLE="$DEST_DIR/$APP_NAME.app"
 
 echo "Running jpackage (app-image)..."
 echo "  Output: $APP_BUNDLE"

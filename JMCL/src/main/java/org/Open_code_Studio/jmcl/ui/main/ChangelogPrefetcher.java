@@ -20,84 +20,79 @@ package org.Open_code_Studio.jmcl.ui.main;
 import org.Open_code_Studio.jmcl.download.game.GameRemoteVersionInfo;
 import org.Open_code_Studio.jmcl.download.game.GameRemoteVersions;
 import org.Open_code_Studio.jmcl.game.ReleaseType;
-import org.Open_code_Studio.jmcl.task.GetTask;
-import org.Open_code_Studio.jmcl.task.Schedulers;
-import org.Open_code_Studio.jmcl.task.Task;
 import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.JsonObject;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.Open_code_Studio.jmcl.util.logging.Logger.LOG;
 
-/// Pre-fetches Minecraft changelog data during app splash-screen,
-/// so it's available immediately when the main window appears.
+/// Pre-fetches Minecraft changelog data using plain HttpURLConnection
+/// (runs on a simple daemon thread, independent of JMCL's task system).
 public final class ChangelogPrefetcher {
 
-    /// Holds pre-fetched changelog data: version info + optional wiki image URL.
     public record ChangelogData(GameRemoteVersionInfo version, @Nullable String imageUrl) {}
 
     private static final CompletableFuture<@Nullable ChangelogData> CACHE = new CompletableFuture<>();
-    private static final AtomicBoolean started = new AtomicBoolean();
 
     private ChangelogPrefetcher() {}
 
-    /// Starts a background task chain that fetches the latest MC release
-    /// and its wiki banner. Idempotent — only runs once.
+    /// Starts a background thread that fetches the latest MC release info.
     public static void startPrefetch() {
-        if (!started.compareAndSet(false, true)) return;
-
-        new GetTask(URI.create("https://piston-meta.mojang.com/mc/game/version_manifest.json"))
-                .thenGetJsonAsync(GameRemoteVersions.class)
-                .thenComposeAsync(versions -> {
-                    GameRemoteVersionInfo latest = findLatestRelease(versions);
-                    if (latest == null) {
-                        CACHE.complete(null);
-                        return Task.completed(null);
+        Thread t = new Thread(() -> {
+            try {
+                String manifest = httpGet("https://piston-meta.mojang.com/mc/game/version_manifest.json");
+                GameRemoteVersions versions = JsonUtils.fromNonNullJson(manifest, GameRemoteVersions.class);
+                GameRemoteVersionInfo latest = null;
+                for (GameRemoteVersionInfo v : versions.versions()) {
+                    if (v.type() == ReleaseType.RELEASE) {
+                        if (latest == null || v.releaseTime().isAfter(latest.releaseTime())) {
+                            latest = v;
+                        }
                     }
+                }
+                if (latest == null) { CACHE.complete(null); return; }
 
-                    String wikiUrl = "https://minecraft.wiki/api.php?action=query"
-                            + "&titles=Java_Edition_" + latest.gameVersion()
-                            + "&prop=pageimages&format=json&pithumbsize=960";
-
-                    return new GetTask(URI.create(wikiUrl)).thenApplyAsync(wikiJson -> {
-                        CACHE.complete(new ChangelogData(latest, parseWikiImageUrl(wikiJson)));
-                        return null;
-                    });
-                })
-                .whenComplete(Schedulers.defaultScheduler(), (ignored, ex) -> {
-                    if (ex != null) {
-                        LOG.warning("Changelog prefetch failed", ex);
-                        CACHE.complete(null);
-                    }
-                }).start();
+                String wikiUrl = "https://minecraft.wiki/api.php?action=query"
+                        + "&titles=Java_Edition_" + latest.gameVersion()
+                        + "&prop=pageimages&format=json&pithumbsize=960";
+                String wikiJson = httpGet(wikiUrl);
+                String imageUrl = parseWikiImage(wikiJson);
+                CACHE.complete(new ChangelogData(latest, imageUrl));
+            } catch (Exception e) {
+                LOG.warning("Changelog prefetch failed", e);
+                CACHE.complete(null);
+            }
+        }, "ChangelogPrefetch");
+        t.setDaemon(true);
+        t.start();
     }
 
-    /// Returns a future that completes when the changelog data is available.
     public static CompletableFuture<@Nullable ChangelogData> getCachedData() {
         return CACHE;
     }
 
-    private static @Nullable GameRemoteVersionInfo findLatestRelease(GameRemoteVersions versions) {
-        GameRemoteVersionInfo latest = null;
-        for (GameRemoteVersionInfo v : versions.versions()) {
-            if (v.type() == ReleaseType.RELEASE) {
-                if (latest == null || v.releaseTime().isAfter(latest.releaseTime())) {
-                    latest = v;
-                }
-            }
+    private static String httpGet(String url) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+        conn.setRequestProperty("User-Agent", "JMCL");
+        try (InputStream is = conn.getInputStream()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
-        return latest;
     }
 
-    private static @Nullable String parseWikiImageUrl(@Nullable String wikiJson) {
-        if (wikiJson == null) return null;
+    private static @Nullable String parseWikiImage(String json) {
+        if (json == null) return null;
         try {
-            JsonObject root = JsonUtils.fromNonNullJson(wikiJson, JsonObject.class);
+            JsonObject root = JsonUtils.fromNonNullJson(json, JsonObject.class);
             JsonObject query = root.getAsJsonObject("query");
             if (query != null) {
                 JsonObject pages = query.getAsJsonObject("pages");
@@ -111,9 +106,7 @@ public final class ChangelogPrefetcher {
                     }
                 }
             }
-        } catch (Exception e) {
-            LOG.warning("Failed to parse wiki image", e);
-        }
+        } catch (Exception ignored) {}
         return null;
     }
 }

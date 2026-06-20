@@ -30,7 +30,9 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.Open_code_Studio.jmcl.EntryPoint;
 import org.Open_code_Studio.jmcl.Metadata;
+import org.Open_code_Studio.jmcl.setting.ConfigHolder;
 import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
@@ -266,6 +268,38 @@ public final class SettingsPage extends ScrollPane {
                     debugPane.setRight(buttonBox);
 
                     miscPaneList.getContent().add(debugPane);
+                }
+
+                {
+                    // Reset launcher to factory defaults
+                    BorderPane resetPane = new BorderPane();
+                    Label left = new Label(i18n("settings.reset"));
+                    BorderPane.setAlignment(left, Pos.CENTER_LEFT);
+                    resetPane.setLeft(left);
+
+                    JFXButton resetButton = new JFXButton(i18n("settings.reset.button"));
+                    resetButton.getStyleClass().add("jfx-button-border");
+                    resetButton.setOnAction(e ->
+                        Controllers.confirm(
+                                i18n("settings.reset.confirm"),
+                                i18n("settings.reset"),
+                                () -> {
+                                    try {
+                                        Files.deleteIfExists(ConfigHolder.configLocation());
+                                        EntryPoint.restart();
+                                    } catch (IOException ex) {
+                                        LOG.warning("Failed to reset config", ex);
+                                    }
+                                },
+                                () -> {} // no-op on cancel
+                        )
+                    );
+                    resetPane.setRight(resetButton);
+                    BorderPane.setAlignment(resetButton, Pos.CENTER_RIGHT);
+
+                    ComponentList resetPaneList = new ComponentList();
+                    resetPaneList.getContent().add(resetPane);
+                    rootPane.getChildren().addAll(ComponentList.createComponentListTitle(i18n("settings.reset")), resetPaneList);
                 }
 
                 rootPane.getChildren().addAll(ComponentList.createComponentListTitle(i18n("settings.launcher.misc")), miscPaneList);

@@ -216,7 +216,7 @@ public final class MainPage extends StackPane implements DecoratorPage {
         StackPane.setMargin(announcementContainer, new Insets(0));
         getChildren().add(announcementContainer);
 
-        // Fetch Mojang changelog asynchronously
+        // Fetch Mojang changelog asynchronously (not blocking constructor)
         javafx.application.Platform.runLater(this::fetchMinecraftChangelogAnnouncement);
 
         updatePane = new StackPane();

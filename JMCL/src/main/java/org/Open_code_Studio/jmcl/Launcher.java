@@ -43,6 +43,7 @@ import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
 import org.Open_code_Studio.jmcl.ui.JMCLPreloader;
 import org.Open_code_Studio.jmcl.ui.MacOSNativeUtils;
+import org.Open_code_Studio.jmcl.ui.main.ChangelogPrefetcher;
 import org.Open_code_Studio.jmcl.theme.Themes;
 import org.Open_code_Studio.jmcl.upgrade.UpdateChecker;
 import org.Open_code_Studio.jmcl.upgrade.UpdateHandler;
@@ -64,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.Open_code_Studio.jmcl.ui.FXUtils.runInFX;
@@ -159,8 +161,12 @@ public final class Launcher extends Application {
                 UpdateChecker.init();
 
                 notifyPreloader(new Preloader.ProgressNotification(0.9));
-                // Wait for preloader to finish its minimum display before showing main window
-                JMCLPreloader.readyFuture().thenRunAsync(() -> primaryStage.show(), Platform::runLater);
+                // Wait for preloader min display AND changelog cache before showing main window
+                CompletableFuture<?> changelogReady = ChangelogPrefetcher.getCachedData()
+                        .orTimeout(5, TimeUnit.SECONDS)
+                        .exceptionally(ex -> null);
+                CompletableFuture.allOf(JMCLPreloader.readyFuture(), changelogReady)
+                        .thenRunAsync(() -> primaryStage.show(), Platform::runLater);
             });
         } catch (Throwable e) {
             CRASH_REPORTER.uncaughtException(Thread.currentThread(), e);

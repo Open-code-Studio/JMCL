@@ -93,6 +93,22 @@ public final class EntryPoint {
         System.exit(exitCode);
     }
 
+    /// Restarts the launcher. Deletes config first to reset to factory defaults.
+    public static void restart() {
+        FileSaver.shutdown();
+        LOG.shutdown();
+        try {
+            String javaBin = ProcessHandle.current().info().command().orElse(System.getProperty("java.home") + "/bin/java");
+            Path jarPath = JarUtils.thisJarPath();
+            if (jarPath != null) {
+                new ProcessBuilder(javaBin, "-jar", jarPath.toString()).inheritIO().start();
+            }
+        } catch (Exception e) {
+            LOG.warning("Failed to restart", e);
+        }
+        System.exit(0);
+    }
+
     private static void setupJavaFXVMOptions() {
         if ("true".equalsIgnoreCase(System.getenv("JVM-MCL_FORCE_GPU"))) {
             LOG.info("JVM-MCL_FORCE_GPU: true");

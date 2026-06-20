@@ -484,6 +484,23 @@ public final class MainPage extends StackPane implements DecoratorPage {
     /// announcement card on the home page if a new release has been detected.
     /// Also attempts to fetch the version's wiki page image.
     private void fetchMinecraftChangelogAnnouncement() {
+        // Try prefetched cache first (loaded during splash screen)
+        ChangelogPrefetcher.getCachedData().whenComplete((data, ex) -> {
+            if (data != null) {
+                String versionId = data.version().gameVersion();
+                if (!Metadata.isDev()) {
+                    String lastShown = (String) config().getShownTips().get(MINECRAFT_CHANGELOG);
+                    if (versionId.equals(lastShown)) return;
+                }
+                createChangelogCard(data.version(), data.imageUrl());
+                return;
+            }
+            // Fallback: fetch live (original behavior)
+            doFetchChangelogLive();
+        });
+    }
+
+    private void doFetchChangelogLive() {
         new GetTask(URI.create("https://piston-meta.mojang.com/mc/game/version_manifest.json"))
                 .thenGetJsonAsync(GameRemoteVersions.class)
                 .whenComplete(Schedulers.javafx(), (versions, exception) -> {

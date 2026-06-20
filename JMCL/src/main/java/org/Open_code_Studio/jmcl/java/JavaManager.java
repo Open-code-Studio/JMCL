@@ -36,6 +36,7 @@ import org.Open_code_Studio.jmcl.util.DigestUtils;
 import org.Open_code_Studio.jmcl.util.Lang;
 import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.Open_code_Studio.jmcl.util.io.FileUtils;
+import org.Open_code_Studio.jmcl.util.io.JarUtils;
 import org.Open_code_Studio.jmcl.util.platform.*;
 import org.Open_code_Studio.jmcl.util.platform.windows.WinReg;
 import org.Open_code_Studio.jmcl.util.versioning.GameVersionNumber;
@@ -355,8 +356,33 @@ public final class JavaManager {
         return suggested != null ? suggested : mandatory;
     }
 
+    /// Whether JMCL is running inside a macOS .app bundle with a bundled runtime.
+    private static boolean isBundledApp() {
+        if (OperatingSystem.CURRENT_OS != OperatingSystem.MACOS) return false;
+        try {
+            Path jarPath = JarUtils.thisJarPath();
+            if (jarPath == null) return false;
+            // Check for Contents/runtime/ relative to the app bundle root
+            Path contents = jarPath.getParent().getParent().getParent();
+            return Files.isDirectory(contents.resolve("runtime"))
+                    && Files.exists(contents.resolve("Info.plist"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static void initialize() {
-        Map<Path, JavaRuntime> allJava = searchPotentialJavaExecutables(true);
+        Map<Path, JavaRuntime> allJava;
+        if (isBundledApp()) {
+            // Bundled app: only use the built-in runtime, skip system Java scanning
+            allJava = new HashMap<>();
+            JavaRuntime current = JavaRuntime.CURRENT_JAVA;
+            if (current != null) {
+                allJava.put(current.getBinary(), current);
+            }
+        } else {
+            allJava = searchPotentialJavaExecutables(true);
+        }
         JavaManager.allJava = allJava;
         LATCH.countDown();
         FXUtils.runInFX(() -> updateAllJavaProperty(allJava));

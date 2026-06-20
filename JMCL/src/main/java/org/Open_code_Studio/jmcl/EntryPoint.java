@@ -64,7 +64,23 @@ public final class EntryPoint {
             System.getProperties().putIfAbsent("apple.awt.application.appearance", "system");
             if (!isInsideMacAppBundle())
                 initIcon();
+            // Prevent macOS "reopen windows" dialog after crash.
+            // com.apple.eawt is internal to java.desktop; use reflection to avoid --add-exports.
+            try {
+                Class<?> appClass = Class.forName("com.apple.eawt.Application");
+                Object app = appClass.getMethod("getApplication").invoke(null);
+                Class<?> listenerClass = Class.forName("com.apple.eawt.event.ReOpenListener");
+                Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                        listenerClass.getClassLoader(), new Class<?>[]{listenerClass},
+                        (proxy, method, methodArgs) -> null
+                );
+                appClass.getMethod("setReOpenHandler", listenerClass).invoke(app, listener);
+            } catch (Throwable ignored) {
+            }
         }
+
+        // Start prefetching MC changelog in background (ready by the time main window shows)
+        org.Open_code_Studio.jmcl.ui.main.ChangelogPrefetcher.startPrefetch();
 
         checkJavaFX();
         verifyJavaFX();

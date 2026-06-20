@@ -507,11 +507,7 @@ public final class Controllers {
                     }, updateShowTips);
         }
 
-        // Show first-launch wizard on initial startup
-        if (!config().isFirstLaunchWizardShown()) {
-            FirstLaunchWizard wizard = new FirstLaunchWizard(stage);
-            wizard.show();
-        }
+        // First-launch wizard disabled in bundled app builds
     }
 
     public static void dialog(Region content) {

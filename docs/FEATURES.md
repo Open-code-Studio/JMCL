@@ -36,7 +36,7 @@ SkinViewPane (StackPane)
 
 ### 特点
 
-- 支持 Alex (slim) 和 Steven (普通) 两种模型
+- 支持 Alex（纤细）和 Steven（普通）两种模型
 - 支持皮肤 + 披风同时渲染
 - 外层半透明层（帽子、外套等）叠加渲染
 - 自动监听账户切换，更新皮肤
@@ -56,7 +56,10 @@ SkinViewPane (StackPane)
 
 ### 功能
 
-- **窗口跟随**（macOS 专用）：通过 `osascript` 调用 macOS Accessibility API 实时获取游戏窗口位置，管理窗口自动贴在游戏窗口右侧
+- **窗口跟随**：实时获取游戏窗口位置，管理窗口自动贴在游戏窗口右侧
+  - macOS：通过 `osascript` 调用 Accessibility API
+  - Windows：通过 PowerShell + C# P/Invoke（`EnumWindows`、`GetWindowRect`）
+  - Linux：通过 `xdotool`
 - **进程监控**：后台线程监控游戏进程，游戏退出时管理窗口自动关闭
 - **操作按钮**：
   - 停止游戏
@@ -280,3 +283,77 @@ control.leftCenter.visibleProperty().bind(
 );
 control.leftCenter.managedProperty().bind(control.leftCenter.visibleProperty());
 ```
+
+---
+
+## 13. 历史 Bug 修复记录
+
+### 13.1 JAR 启动崩溃 — 模块系统冲突
+
+**症状**：macOS 上用 `jpackage --module-path` 打包 JavaFX 模块到 `.app` 后，启动动画一闪立即崩溃。
+
+**根因**：[`SelfDependencyPatcher`](JMCL/src/main/java/org/Open_code_Studio/jmcl/util/SelfDependencyPatcher.java) 在运行时通过反射将 JavaFX JAR 注入类路径，与 `--module-path` 的模块系统产生冲突。
+
+**修复**：新增 `copyFromBundle()` 和 `getBundleJarDirectory()` 方法。patch 阶段**优先从 `.app/Contents/app/` 目录复制 JavaFX JAR** 到依赖缓存，避免使用 `--module-path`，从而消除模块系统冲突且无需联网下载。
+
+### 13.2 `posix_spawn failed` / 退出码 134 / 退出码 143
+
+**症状**：macOS 上启动 Minecraft 游戏时抛出 `java.io.IOException: posix_spawn failed`，或进程被 `SIGABRT`（退出码 134）/ `SIGTERM`（退出码 143）终止。
+
+**根因**：macOS 上 Java 进程创建默认使用 `posix_spawn` 系统调用，当工作目录路径包含空格或系统环境异常时容易失败。
+
+**修复**（涉及 3 个文件）：
+- [`SystemUtils.java`](JMCLCore/src/main/java/org/Open_code_Studio/jmcl/util/SystemUtils.java) — macOS 上用 `/bin/bash -c` 包装命令，绕过 `posix_spawn`
+- [`DefaultLauncher.java`](JMCL/src/main/java/org/Open_code_Studio/jmcl/game/DefaultLauncher.java) — 启动游戏子进程时设置环境变量 `_JAVA_OPTIONS=-Djdk.lang.Process.launchMechanism=FORK`
+- [`build-ultimate.sh`](build-ultimate.sh) — 构建时同样设置 FORK 机制
+
+### 13.3 macOS 更新时 JAR 替换失败
+
+**症状**：macOS `.app bundle` 内执行更新时，JAR 替换路径错误或应用不重启。
+
+**修复**：[`UpdateHandler`](JMCL/src/main/java/org/Open_code_Studio/jmcl/upgrade/UpdateHandler.java) 新增 macOS 专用路径解析：
+- `isRunningInAppBundle()` — 检测当前 JAR 是否在 `.app/Contents/app/` 内部
+- `findAppBundle()` — 从 JAR 路径反向解析 `.app` 根目录（`.../JMCL.app/Contents/app/jar` → `.../JMCL.app`）
+- 用 `Files.copy(REPLACE_EXISTING)` 直接覆盖旧 JAR，然后 `ProcessBuilder("open", appBundle)` 重启
+
+### 13.4 WebView 皮肤预览崩溃 — CDN 依赖
+
+**症状**：皮肤预览区域始终纯白色，WebView 不渲染任何内容。
+
+**根因**：`skinview3d.js` 从 CDN（`unpkg.com`）加载，网络失败或超时导致 WebView 状态异常，JavaScript 运行时错误被 JavaFX WebEngine 静默吞掉。
+
+**修复**：
+- 将 `skinview3d.js` 内联为本地资源，通过临时目录 + `file://` URL 加载
+- 用 `PauseTransition` 确保 WebEngine 操作在 JavaFX 线程执行
+- 添加 `window.onerror` 和 `_skinViewerLastError` 变量捕获 JS 错误
+- 后续改用 JavaFX 3D（`SkinCanvas`）完全替代 WebView 方案
+
+### 13.5 公告栏 UI 溢出
+
+**症状**：公告栏（更新日志卡片）无限增长，挤压其他 UI 组件，导致页面被卡出窗口外。
+
+**根因**：`TransitionPane`（继承 `StackPane`）的布局计算使用子节点的 `pref` 尺寸而非 `max` 尺寸，未设置 `prefWidth/prefHeight` 时导致无限增长。
+
+**修复**：
+- 使用 `Pane` 包裹公告栏，显式设置 `prefWidth/prefHeight` 和 `maxWidth/maxHeight` 为相同值
+- 用 `FXUtils.setOverflowHidden()` 裁剪溢出内容
+- 宽度绑定到父容器 `widthProperty()`，高度绑定到 `max(height-160, 180)`
+
+### 13.6 应用图标丢失
+
+**症状**：macOS DMG 安装后，Finder 中 `.app` 图标不显示。
+
+**根因**：`sips` 生成单尺寸 256px ICNS，macOS 在不同缩放比例下找不到对应尺寸的图标。
+
+**修复**：改用 `iconutil` 生成多尺寸 ICNS（16/32/128/256/512px + @2x Retina），确保在任何缩放比例下正确显示。
+
+### 13.7 实例管理器不跟随窗口
+
+**症状**：游戏启动后，实例管理器窗口不跟随游戏窗口移动。
+
+**根因**：`osascript` 子进程没有同时消费 `ErrorStream`，导致进程阻塞死锁；`Thread.sleep(1)` 轮询频率过高引发线程调度问题。
+
+**修复**：
+- 同时消费 `InputStream` 和 `ErrorStream`，调用 `waitFor()` 确保进程正确结束
+- `Thread.sleep(1)` → `Thread.sleep(100)` 减少 CPU 占用
+- 添加位置缓存（`lastX`/`lastY`），位置未变时不触发 UI 更新

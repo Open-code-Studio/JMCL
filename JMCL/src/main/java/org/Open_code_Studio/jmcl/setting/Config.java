@@ -227,9 +227,6 @@ public final class Config extends ObservableSetting {
     @SerializedName("launcherType")
     private final StringProperty launcherType = new SimpleStringProperty("CLASSIC");
 
-    @SerializedName("firstLaunchWizardShown")
-    private final BooleanProperty firstLaunchWizardShown = new SimpleBooleanProperty(false);
-
     public BooleanProperty disableAutoShowUpdateDialogProperty() {
         return disableAutoShowUpdateDialog;
     }
@@ -254,18 +251,6 @@ public final class Config extends ObservableSetting {
 
     public void setLauncherType(String launcherType) {
         this.launcherType.set(launcherType);
-    }
-
-    public BooleanProperty firstLaunchWizardShownProperty() {
-        return firstLaunchWizardShown;
-    }
-
-    public boolean isFirstLaunchWizardShown() {
-        return firstLaunchWizardShown.get();
-    }
-
-    public void setFirstLaunchWizardShown(boolean shown) {
-        this.firstLaunchWizardShown.set(shown);
     }
 
     @SerializedName("disableAprilFools")

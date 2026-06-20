@@ -22,6 +22,7 @@ import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.application.Preloader;
 import javafx.beans.value.ObservableBooleanValue;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.control.Alert;
@@ -76,6 +77,7 @@ public final class Launcher extends Application {
     public void start(Stage primaryStage) {
         Thread.currentThread().setUncaughtExceptionHandler(CRASH_REPORTER);
 
+        notifyPreloader(new Preloader.ProgressNotification(0.1));
         CookieHandler.setDefault(COOKIE_MANAGER);
 
         LOG.info("JavaFX Version: " + System.getProperty("javafx.runtime.version"));
@@ -96,6 +98,7 @@ public final class Launcher extends Application {
         }
 
         try {
+            notifyPreloader(new Preloader.ProgressNotification(0.2));
             try {
                 ConfigHolder.init();
             } catch (SambaException e) {
@@ -136,6 +139,7 @@ public final class Launcher extends Application {
                 // When launcher visibility is set to "hide and reopen" without Platform.implicitExit = false,
                 // Stage.show() cannot work again because JavaFX Toolkit have already shut down.
                 Platform.setImplicitExit(false);
+                notifyPreloader(new Preloader.ProgressNotification(0.5));
                 Controllers.initialize(primaryStage);
 
                 if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
@@ -153,6 +157,7 @@ public final class Launcher extends Application {
 
                 UpdateChecker.init();
 
+                notifyPreloader(new Preloader.ProgressNotification(0.9));
                 primaryStage.show();
             });
         } catch (Throwable e) {

@@ -28,16 +28,40 @@ LICENSES_DIR="$SCRIPT_DIR/licenses"
 BUILD_DIR="$SCRIPT_DIR/JMCL/build/libs"
 DEST_DIR="$SCRIPT_DIR/dist"
 
-# Force FORK process mechanism for all Java subprocesses (fix macOS posix_spawn bug)
-export _JAVA_OPTIONS="-Djdk.lang.Process.launchMechanism=FORK"
+# Note: FORK mechanism only needed for Gradle build, not for jpackage.
+# Setting it globally can crash jpackage with SIGBUS on Apple Silicon.
+# It is now set only in the build step.
 
 # ---- JDK detection ----
+resolve_jdk() {
+    local dir="$1"
+    # macOS .app-style JDK: Contents/Home/
+    if [ -f "$dir/Contents/Home/bin/jpackage" ]; then
+        echo "$dir/Contents/Home"
+    elif [ -f "$dir/bin/jpackage" ]; then
+        echo "$dir"
+    else
+        echo ""
+    fi
+}
+
+# Priority: explicit env var > system java_home > project jdk21 (known stable)
+# jdk21-full is used only for jmods (to create jlink runtime), NOT to run jpackage
+# (JDK 21.0.11 has SIGBUS crash on macOS 26/Apple Silicon)
+JAVA_HOME=""
 if [ -n "${JDK21_HOME:-}" ]; then
-    JAVA_HOME="$JDK21_HOME"
-elif [ -d "/Users/cangcang/Documents/jdk21" ]; then
-    JAVA_HOME="/Users/cangcang/Documents/jdk21"
-else
-    JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21 2>/dev/null || echo "")}"
+    JAVA_HOME="$(resolve_jdk "$JDK21_HOME")"
+fi
+if [ -z "$JAVA_HOME" ]; then
+    # Prefer jdk21 (Microsoft build, known stable) over jdk21-full (Adoptium, known SIGBUS)
+    if [ -d "/Users/cangcang/Documents/jdk21" ]; then
+        JAVA_HOME="$(resolve_jdk "/Users/cangcang/Documents/jdk21")"
+    elif [ -d "/Users/cangcang/Documents/jdk21-full" ]; then
+        JAVA_HOME="$(resolve_jdk "/Users/cangcang/Documents/jdk21-full")"
+    fi
+fi
+if [ -z "$JAVA_HOME" ]; then
+    JAVA_HOME="$(/usr/libexec/java_home -v 21 2>/dev/null || echo "")"
 fi
 
 if [ -z "$JAVA_HOME" ] || [ ! -f "$JAVA_HOME/bin/jpackage" ]; then
@@ -84,6 +108,7 @@ fi
 if [ "$SKIP_BUILD" = false ]; then
     echo ""
     echo "=== Step 1: Building JMCL ==="
+    export _JAVA_OPTIONS="-Djdk.lang.Process.launchMechanism=FORK"
     export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g -Djava.awt.headless=true"
 
     if command -v gradle &>/dev/null; then
@@ -252,75 +277,128 @@ ADD_OPENS=(
     "-Xmx1g"
 )
 
-JPACKAGE_ARGS=(
-    --type app-image
-    --name "$APP_NAME"
-    --app-version "$APP_VERSION"
-    --vendor "$VENDOR"
-    --main-jar "$(basename "$JAR_FILE")"
-    --main-class "org.Open_code_Studio.jmcl.Main"
-    --input "$INPUT_DIR"
-    --dest "$DEST_DIR"
-    --mac-package-identifier "$IDENTIFIER"
-    --mac-package-name "$APP_NAME"
-    --runtime-image "$JAVA_HOME"
-    --java-options "-Dsun.java2d.metal=true"
-)
-
-# Add icon if available
-if [ -n "${ICNS_FILE:-}" ] && [ -f "$ICNS_FILE" ]; then
-    JPACKAGE_ARGS+=(--icon "$ICNS_FILE")
-fi
-
-# Add all JVM options
-for opt in "${ADD_OPENS[@]}"; do
-    JPACKAGE_ARGS+=(--java-options "$opt")
-done
-
-if [ -d "$DEST_DIR/$APP_NAME.app" ]; then
-    echo "Removing previous .app bundle..."
-    rm -rf "$DEST_DIR/$APP_NAME.app"
-fi
-APP_BUNDLE="$DEST_DIR/$APP_NAME.app"
-
-echo "Running jpackage (app-image)..."
-echo "  Output: $APP_BUNDLE"
+# ============================================================================
+# Step 5: Build .app manually (avoid jpackage NoSuchElementException + SIGBUS)
+# ============================================================================
 echo ""
+echo "=== Step 5: Building .app bundle manually ==="
 
-# Retry loop for macOS posix_spawn race condition
-MAX_RETRIES=3
-RETRY_DELAY=2
-JPACKAGE_EXIT=1
-for attempt in $(seq 1 "$MAX_RETRIES"); do
-    if [ "$attempt" -gt 1 ]; then
-        echo "  Retry attempt $attempt/$MAX_RETRIES..."
-        sleep "$RETRY_DELAY"
-    fi
-
-    if "$JPACKAGE" "${JPACKAGE_ARGS[@]}"; then
-        JPACKAGE_EXIT=0
-        break
-    else
-        JPACKAGE_EXIT=$?
-        echo "  jpackage failed (exit code $JPACKAGE_EXIT), will retry..."
-    fi
-done
-
-if [ "$JPACKAGE_EXIT" -ne 0 ]; then
-    echo ""
-    echo "=== JPACKAGE FAILED after $MAX_RETRIES attempts ==="
-    exit "$JPACKAGE_EXIT"
-fi
-
-if [ ! -d "$APP_BUNDLE" ]; then
-    echo "ERROR: .app bundle was not created at $APP_BUNDLE"
+# Use Microsoft JDK 21 as runtime (stable, no SIGBUS on macOS 26/Apple Silicon).
+# rsync -aL follows symlinks, which is required for macOS .app-style JDK.
+RUNTIME_SRC=""
+if [ -f "/Users/cangcang/Documents/jdk21/Contents/Home/bin/java" ]; then
+    RUNTIME_SRC="/Users/cangcang/Documents/jdk21/Contents/Home"
+elif [ -f "/Users/cangcang/Documents/jdk21/bin/java" ]; then
+    RUNTIME_SRC="/Users/cangcang/Documents/jdk21"
+else
+    echo "ERROR: No stable JDK found for runtime"
     exit 1
 fi
+echo "  Runtime source: $RUNTIME_SRC"
+
+APP_BUNDLE="$DEST_DIR/$APP_NAME.app"
+rm -rf "$APP_BUNDLE"
+mkdir -p "$APP_BUNDLE/Contents"/{MacOS,Resources,app}
+
+# Copy runtime (follow symlinks — critical for macOS JDK bundles)
+echo "  Copying Java runtime..."
+rsync -aL --no-perms "$RUNTIME_SRC/" "$APP_BUNDLE/Contents/runtime/"
+echo "  Runtime copied: $(du -sh "$APP_BUNDLE/Contents/runtime" | cut -f1)"
+
+# Copy JAR
+cp "$JAR_FILE" "$APP_BUNDLE/Contents/app/"
+
+# Copy JavaFX jars if available
+for jfx in "$INPUT_DIR"/javafx-*.jar; do
+    [ -f "$jfx" ] && cp "$jfx" "$APP_BUNDLE/Contents/app/"
+done
+
+# Add all JVM options to launcher
+ADD_OPENS_STR=""
+for opt in "${ADD_OPENS[@]}"; do
+    ADD_OPENS_STR="$ADD_OPENS_STR  $opt"
+done
+
+# Create native launcher script (jpackage's launcher has issues, use shell)
+cat > "$APP_BUNDLE/Contents/MacOS/$APP_NAME" << LAUNCHER
+#!/bin/bash
+DIR="\$(cd "\$(dirname "\$0")" && pwd)"
+RUNTIME="\$DIR/../runtime"
+APP_DIR="\$DIR/../app"
+JAR=\$(ls "\$APP_DIR"/JVM-MCL-*.jar 2>/dev/null | head -1)
+if [ -z "\$JAR" ]; then
+    osascript -e 'display dialog "JMCL JAR not found!" buttons {"OK"} default button 1 with icon stop'
+    exit 1
+fi
+exec "\$RUNTIME/bin/java" \\
+  -Djavafx.preloader=org.Open_code_Studio.jmcl.ui.JMCLPreloader \\
+  -Xdock:icon="\$DIR/../Resources/$APP_NAME.icns" \\
+  -Xdock:name="$APP_NAME" \\
+  -Dsun.java2d.metal=true \\
+  -Xmx1g \\
+  -Djdk.lang.Process.launchMechanism=FORK \\
+  -Djvmmcl.offline.auth.restricted=false \\
+  -Djvmmcl.dir="\$HOME/.jvm-mcl" \\
+  $ADD_OPENS_STR \\
+  -jar "\$JAR"
+LAUNCHER
+chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+
+# Create Info.plist
+cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleIdentifier</key>
+    <string>$IDENTIFIER</string>
+    <key>CFBundleName</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleIconFile</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleVersion</key>
+    <string>$APP_VERSION</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$APP_VERSION</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSQuitAlwaysKeepsWindows</key>
+    <false/>
+    <key>NSPersistentStateRestorationEnabled</key>
+    <false/>
+</dict>
+</plist>
+PLIST
+
+# Copy icon
+if [ -n "${ICNS_FILE:-}" ] && [ -f "$ICNS_FILE" ]; then
+    cp "$ICNS_FILE" "$APP_BUNDLE/Contents/Resources/$APP_NAME.icns"
+fi
+
+# Copy splash screen image (JVM -splash: shows it immediately on JVM init)
+if [ -f "$ICON_PNG" ]; then
+    cp "$ICON_PNG" "$APP_BUNDLE/Contents/Resources/splash.png"
+fi
+
+# Create PkgInfo
+echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
+
+# Code sign (ad-hoc) to avoid Gatekeeper issues
+echo "  Signing .app (ad-hoc)..."
+codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || echo "  WARNING: codesign failed (non-fatal)"
+
+echo ""
 echo ".app bundle created: $APP_BUNDLE"
 
-# ============================================================================
-# Step 6: Generate DMG background
-# ============================================================================
+# Skip to DMG step directly (no jpackage retry needed)
 echo ""
 echo "=== Step 6: Generating DMG background ==="
 

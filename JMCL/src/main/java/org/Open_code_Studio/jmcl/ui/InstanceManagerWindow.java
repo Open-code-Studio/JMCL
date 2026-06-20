@@ -255,10 +255,15 @@ public final class InstanceManagerWindow extends Stage {
         };
     }
 
-    /// macOS: uses `osascript` with System Events to find the game window by PID.
-    /// Tries to locate the main window first, falls back to the first available window.
+    /// macOS: finds the game window via AppleScript + System Events.
+    /// Requires Accessibility permission for the launching app (Terminal.app / JMCL itself).
     private static @Nullable String[] getMacOSWindowBounds(long pid) throws IOException {
-        String script =
+        return parseCommaOutput(runScript("osascript", "-e", buildMacOSAppleScript(pid)));
+    }
+
+    /// Builds the AppleScript for finding a window by PID via System Events.
+    private static String buildMacOSAppleScript(long pid) {
+        return
             "tell application \"System Events\"\n" +
             "  set procList to every process whose unix id is " + pid + "\n" +
             "  if (count of procList) = 0 then return \"\"\n" +
@@ -282,23 +287,21 @@ public final class InstanceManagerWindow extends Stage {
             "    return \"\"\n" +
             "  end try\n" +
             "end tell";
+    }
 
-        String output = runScript("osascript", "-e", script);
-        if (output.isEmpty()) return null;
-
+    /// Parses a comma-separated "x,y,width" string into a String array, or null on failure.
+    private static @Nullable String[] parseCommaOutput(String output) {
+        if (output == null || output.isEmpty()) return null;
         String[] parts = output.split(",");
-        if (parts.length >= 3) {
-            try {
-                // validate numeric
-                Double.parseDouble(parts[0].trim());
-                Double.parseDouble(parts[1].trim());
-                Double.parseDouble(parts[2].trim());
-                return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
+        if (parts.length < 3) return null;
+        try {
+            Double.parseDouble(parts[0].trim());
+            Double.parseDouble(parts[1].trim());
+            Double.parseDouble(parts[2].trim());
+            return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
+        } catch (NumberFormatException ignored) {
+            return null;
         }
-        return null;
     }
 
     /// Windows: uses PowerShell with C# P/Invoke to EnumWindows and GetWindowRect.
@@ -331,40 +334,21 @@ public final class InstanceManagerWindow extends Stage {
             "  Write-Output \"$($rect.L),$($rect.T),$($rect.Rg-$rect.L)\";\n" +
             "}\n";
 
-        String output = runScript("powershell", "-NoProfile", "-Command", script);
-        if (output.isEmpty()) return null;
-
-        String[] parts = output.split(",");
-        if (parts.length >= 3) {
-            try {
-                Double.parseDouble(parts[0].trim());
-                Double.parseDouble(parts[1].trim());
-                Double.parseDouble(parts[2].trim());
-                return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
+        return parseCommaOutput(runScript("powershell", "-NoProfile", "-Command", script));
     }
 
     /// Linux/FreeBSD: uses `xdotool` to find windows by PID.
     private static @Nullable String[] getLinuxWindowBounds(long pid) throws IOException {
-        // try xdotool first
-        Process p = new ProcessBuilder("xdotool", "search", "--pid", String.valueOf(pid)).start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-        int exit;
-        try { exit = p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+        // xdotool search for windows by PID
+        String output = runScript("xdotool", "search", "--pid", String.valueOf(pid));
+        if (output.isEmpty()) return null;
 
-        if (exit != 0 || output.isEmpty()) return null;
-
-        // get geometry of the first window
         String wid = output.split("\\R")[0].trim();
         if (wid.isEmpty()) return null;
 
-        Process p2 = new ProcessBuilder("xdotool", "getwindowgeometry", "--shell", wid).start();
-        String geo = new String(p2.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        try { p2.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+        // xdotool getwindowgeometry
+        String geo = runScript("xdotool", "getwindowgeometry", "--shell", wid);
+        if (geo.isEmpty()) return null;
 
         String x = null, y = null, w = null;
         for (String line : geo.split("\\R")) {
@@ -379,13 +363,13 @@ public final class InstanceManagerWindow extends Stage {
         return null;
     }
 
-    /// Runs a script process and returns trimmed stdout, or empty string on failure.
+    /// Runs a script process and returns trimmed stdout+stderr, or empty string on failure.
     private static String runScript(String... cmd) {
         try {
-            Process p = new ProcessBuilder(cmd).start();
+            Process p = new ProcessBuilder(cmd)
+                    .redirectErrorStream(true)
+                    .start();
             String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            // consume stderr to avoid deadlock
-            p.getErrorStream().readAllBytes();
             try {
                 p.waitFor();
             } catch (InterruptedException e) {

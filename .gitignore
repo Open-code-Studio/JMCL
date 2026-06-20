@@ -3,6 +3,7 @@
 
 # Log file
 *.log
+*.lock
 
 # Azure AD local credentials (do not commit)
 config/azure-ad.properties

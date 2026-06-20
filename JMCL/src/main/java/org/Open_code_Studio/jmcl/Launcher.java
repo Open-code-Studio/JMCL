@@ -145,6 +145,9 @@ public final class Launcher extends Application {
                 notifyPreloader(new Preloader.ProgressNotification(0.5));
                 Controllers.initialize(primaryStage);
 
+                // Start changelog prefetch in background (parallel to preloader delay)
+                ChangelogPrefetcher.startPrefetch();
+
                 if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
                     Themes.applyNativeDarkMode(primaryStage);
 

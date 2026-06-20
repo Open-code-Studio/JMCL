@@ -35,7 +35,6 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.Open_code_Studio.jmcl.Metadata;
-import org.Open_code_Studio.jmcl.ui.main.ChangelogPrefetcher;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -67,9 +66,6 @@ public final class JMCLPreloader extends Preloader {
         this.stage = primaryStage;
         this.startTime = System.currentTimeMillis();
         Platform.setImplicitExit(false);
-
-        // Prefetch MC changelog in background — ready by the time main window shows
-        ChangelogPrefetcher.startPrefetch();
 
         // Close JVM native splash (-splash:) if still showing
         try {

@@ -21,6 +21,7 @@ import org.Open_code_Studio.jmcl.download.game.GameRemoteVersionInfo;
 import org.Open_code_Studio.jmcl.download.game.GameRemoteVersions;
 import org.Open_code_Studio.jmcl.game.ReleaseType;
 import org.Open_code_Studio.jmcl.task.GetTask;
+import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.task.Task;
 import org.Open_code_Studio.jmcl.util.gson.JsonUtils;
 import org.jetbrains.annotations.Nullable;
@@ -53,14 +54,7 @@ public final class ChangelogPrefetcher {
         new GetTask(URI.create("https://piston-meta.mojang.com/mc/game/version_manifest.json"))
                 .thenGetJsonAsync(GameRemoteVersions.class)
                 .thenComposeAsync(versions -> {
-                    GameRemoteVersionInfo latest = null;
-                    for (GameRemoteVersionInfo v : versions.versions()) {
-                        if (v.type() == ReleaseType.RELEASE) {
-                            if (latest == null || v.releaseTime().isAfter(latest.releaseTime())) {
-                                latest = v;
-                            }
-                        }
-                    }
+                    GameRemoteVersionInfo latest = findLatestRelease(versions);
                     if (latest == null) {
                         CACHE.complete(null);
                         return Task.completed(null);
@@ -71,33 +65,11 @@ public final class ChangelogPrefetcher {
                             + "&prop=pageimages&format=json&pithumbsize=960";
 
                     return new GetTask(URI.create(wikiUrl)).thenApplyAsync(wikiJson -> {
-                        String imageUrl = null;
-                        if (wikiJson != null) {
-                            try {
-                                JsonObject root = JsonUtils.fromNonNullJson(wikiJson, JsonObject.class);
-                                JsonObject query = root.getAsJsonObject("query");
-                                if (query != null) {
-                                    JsonObject pages = query.getAsJsonObject("pages");
-                                    if (pages != null) {
-                                        for (var entry : pages.entrySet()) {
-                                            JsonObject page = entry.getValue().getAsJsonObject();
-                                            if (page != null && page.has("thumbnail")) {
-                                                imageUrl = page.getAsJsonObject("thumbnail")
-                                                        .get("source").getAsString();
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                            } catch (Exception e) {
-                                LOG.warning("Failed to parse wiki image", e);
-                            }
-                        }
-                        CACHE.complete(new ChangelogData(latest, imageUrl));
+                        CACHE.complete(new ChangelogData(latest, parseWikiImageUrl(wikiJson)));
                         return null;
                     });
                 })
-                .whenComplete((ignored, ex) -> {
+                .whenComplete(Schedulers.defaultScheduler(), (ignored, ex) -> {
                     if (ex != null) {
                         LOG.warning("Changelog prefetch failed", ex);
                         CACHE.complete(null);
@@ -108,5 +80,40 @@ public final class ChangelogPrefetcher {
     /// Returns a future that completes when the changelog data is available.
     public static CompletableFuture<@Nullable ChangelogData> getCachedData() {
         return CACHE;
+    }
+
+    private static @Nullable GameRemoteVersionInfo findLatestRelease(GameRemoteVersions versions) {
+        GameRemoteVersionInfo latest = null;
+        for (GameRemoteVersionInfo v : versions.versions()) {
+            if (v.type() == ReleaseType.RELEASE) {
+                if (latest == null || v.releaseTime().isAfter(latest.releaseTime())) {
+                    latest = v;
+                }
+            }
+        }
+        return latest;
+    }
+
+    private static @Nullable String parseWikiImageUrl(@Nullable String wikiJson) {
+        if (wikiJson == null) return null;
+        try {
+            JsonObject root = JsonUtils.fromNonNullJson(wikiJson, JsonObject.class);
+            JsonObject query = root.getAsJsonObject("query");
+            if (query != null) {
+                JsonObject pages = query.getAsJsonObject("pages");
+                if (pages != null) {
+                    for (var entry : pages.entrySet()) {
+                        JsonObject page = entry.getValue().getAsJsonObject();
+                        if (page != null && page.has("thumbnail")) {
+                            return page.getAsJsonObject("thumbnail").get("source").getAsString();
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.warning("Failed to parse wiki image", e);
+        }
+        return null;
     }
 }

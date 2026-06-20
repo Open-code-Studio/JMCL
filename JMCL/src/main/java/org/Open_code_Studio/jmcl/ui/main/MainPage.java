@@ -484,8 +484,10 @@ public final class MainPage extends StackPane implements DecoratorPage {
     /// announcement card on the home page if a new release has been detected.
     /// Also attempts to fetch the version's wiki page image.
     private void fetchMinecraftChangelogAnnouncement() {
-        // Try prefetched cache first (loaded during splash screen)
-        ChangelogPrefetcher.getCachedData().whenComplete((data, ex) -> {
+        // Try to use pre-fetched cache (loaded in background during splash)
+        var cached = ChangelogPrefetcher.getCachedData();
+        if (cached.isDone()) {
+            ChangelogPrefetcher.ChangelogData data = cached.getNow(null);
             if (data != null) {
                 String versionId = data.version().gameVersion();
                 if (!Metadata.isDev()) {
@@ -495,9 +497,9 @@ public final class MainPage extends StackPane implements DecoratorPage {
                 createChangelogCard(data.version(), data.imageUrl());
                 return;
             }
-            // Fallback: fetch live (original behavior)
-            doFetchChangelogLive();
-        });
+        }
+        // Fallback: fetch live
+        doFetchChangelogLive();
     }
 
     private void doFetchChangelogLive() {

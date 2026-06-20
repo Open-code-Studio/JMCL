@@ -17,7 +17,8 @@
  */
 package org.Open_code_Studio.jmcl.ui;
 
-import javafx.animation.*;
+import javafx.animation.FadeTransition;
+import javafx.application.Platform;
 import javafx.application.Preloader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -27,6 +28,7 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
@@ -34,100 +36,138 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.Open_code_Studio.jmcl.Metadata;
 
-/// Preloader splash screen mimicking Android Studio startup style:
-/// centered logo + version, with an indeterminate progress bar at bottom-right.
+import java.util.concurrent.CompletableFuture;
+
+/// Preloader splash screen:
+/// - Rounded dark rectangle window
+/// - JMCL icon on the left
+/// - Version text "JMCL-{VERSION}" at top-left
+/// - Indeterminate progress bar at bottom-right
+/// - Loading status text below icon
 public final class JMCLPreloader extends Preloader {
 
+    private static final int WIDTH = 560;
+    private static final int HEIGHT = 320;
+    private static final int RADIUS = 16;
+    private static final long MIN_DISPLAY_MS = 2000;
+
+    /// Completes when the preloader has finished its minimum display time and hidden itself.
+    /// The main application waits on this before showing the primary stage.
+    private static final CompletableFuture<Void> READY = new CompletableFuture<>();
+
+    public static CompletableFuture<Void> readyFuture() { return READY; }
+
     private Stage stage;
-    private Label messageLabel;
+    private Label statusLabel;
+    private long startTime;
 
     @Override
     public void start(Stage primaryStage) {
         this.stage = primaryStage;
-        primaryStage.initStyle(StageStyle.TRANSPARENT);
+        this.startTime = System.currentTimeMillis();
+        Platform.setImplicitExit(false);
 
-        // --- Left panel: logo + version (Android Studio style) ---
-        VBox leftPane = new VBox(12);
-        leftPane.setAlignment(Pos.CENTER);
-        leftPane.setPadding(new Insets(40, 60, 40, 60));
+        // Close JVM native splash (-splash:) if still showing
+        try {
+            java.awt.SplashScreen splash = java.awt.SplashScreen.getSplashScreen();
+            if (splash != null && splash.isVisible()) splash.close();
+        } catch (Throwable ignored) {}
 
-        // Logo
+        primaryStage.initStyle(StageStyle.UNDECORATED);
+        primaryStage.setAlwaysOnTop(true);
+
+        // === Top-left: version label ===
+        Label versionLabel = new Label("JMCL-" + Metadata.VERSION);
+        versionLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        versionLabel.setTextFill(Color.web("#AAAAAA"));
+        versionLabel.setPadding(new Insets(20, 0, 0, 28));
+
+        // === Left: logo ===
         ImageView logo = new ImageView(FXUtils.newBuiltinImage("/assets/img/jvm-mcl.png"));
-        logo.setFitWidth(96);
-        logo.setFitHeight(96);
+        logo.setFitWidth(64);
+        logo.setFitHeight(64);
         logo.setPreserveRatio(true);
-        // Fade-in animation for logo
-        FadeTransition logoFade = new FadeTransition(Duration.millis(800), logo);
+        FadeTransition logoFade = new FadeTransition(Duration.millis(600), logo);
         logoFade.setFromValue(0);
         logoFade.setToValue(1);
         logoFade.play();
 
-        // App name
-        Label nameLabel = new Label(Metadata.NAME);
-        nameLabel.setFont(Font.font("System", FontWeight.BOLD, 22));
-        nameLabel.setTextFill(Color.web("#EEEEEE"));
+        // === Status text below logo ===
+        statusLabel = new Label("Loading...");
+        statusLabel.setFont(Font.font("System", 12));
+        statusLabel.setTextFill(Color.web("#888888"));
 
-        // Version
-        Label versionLabel = new Label("v" + Metadata.VERSION);
-        versionLabel.setFont(Font.font("System", 14));
-        versionLabel.setTextFill(Color.web("#999999"));
+        VBox leftPane = new VBox(8, logo, statusLabel);
+        leftPane.setAlignment(Pos.CENTER_LEFT);
+        leftPane.setPadding(new Insets(0, 0, 0, 28));
 
-        // Loading message
-        messageLabel = new Label("Loading...");
-        messageLabel.setFont(Font.font("System", 12));
-        messageLabel.setTextFill(Color.web("#777777"));
-
-        leftPane.getChildren().addAll(logo, nameLabel, versionLabel, messageLabel);
-
-        // --- Bottom-right: indeterminate progress bar ---
+        // === Bottom-right: indeterminate progress bar (MD3 linear style, matching JMCL) ===
         ProgressBar progressBar = new ProgressBar();
-        progressBar.setPrefWidth(160);
-        progressBar.setMaxWidth(160);
-        progressBar.setPrefHeight(4);
-        progressBar.setMaxHeight(4);
-        progressBar.setStyle(
-            "-fx-accent: #4FC3F7;" +
-            "-fx-background-color: #333333;" +
-            "-fx-control-inner-background: #333333;"
-        );
-        // Indeterminate = the "small bar moving back and forth" effect
+        progressBar.setPrefWidth(140);
+        progressBar.setMaxWidth(140);
+        progressBar.setPrefHeight(6);
+        progressBar.setMaxHeight(6);
+        progressBar.getStyleClass().add("md3-linear-progress");
         progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
 
-        // Progress bar container at bottom-right
         HBox progressBox = new HBox(progressBar);
         progressBox.setAlignment(Pos.BOTTOM_RIGHT);
-        progressBox.setPadding(new Insets(0, 24, 20, 0));
+        progressBox.setPadding(new Insets(0, 28, 24, 0));
 
-        // --- Combine layout ---
+        // === Layout ===
         BorderPane root = new BorderPane();
+        root.setTop(versionLabel);
         root.setCenter(leftPane);
         root.setBottom(progressBox);
         root.setBackground(new Background(new BackgroundFill(
-                Color.rgb(30, 30, 30), null, null)));
+                Color.rgb(28, 28, 30), CornerRadii.EMPTY, Insets.EMPTY)));
+        root.setStyle("-fx-background-radius: " + RADIUS + ";");
 
-        Scene scene = new Scene(root, 520, 340);
+        // Clip for rounded corners (UNDECORATED stages need manual clipping)
+        Rectangle clip = new Rectangle(WIDTH, HEIGHT);
+        clip.setArcWidth(RADIUS * 2);
+        clip.setArcHeight(RADIUS * 2);
+        root.setClip(clip);
+
+        Scene scene = new Scene(root, WIDTH, HEIGHT);
         scene.setFill(Color.TRANSPARENT);
+        // Inline MD3 linear progress style (matches JMCL's .progress-bar.md3-linear-progress)
+        scene.getStylesheets().add("data:text/css," +
+            ".progress-bar.md3-linear-progress > .track {" +
+            "  -fx-background-color: #3A3A3D;" +
+            "  -fx-background-radius: 4px;" +
+            "  -fx-background-insets: 0;" +
+            "  -fx-padding: 0;" +
+            "}" +
+            ".progress-bar.md3-linear-progress > .bar {" +
+            "  -fx-background-color: #4FC3F7;" +
+            "  -fx-background-radius: 4px;" +
+            "  -fx-padding: 3px;" +
+            "}"
+        );
         primaryStage.setScene(scene);
+        primaryStage.centerOnScreen();
         primaryStage.show();
     }
 
     @Override
     public void handleStateChangeNotification(StateChangeNotification info) {
         if (info.getType() == StateChangeNotification.Type.BEFORE_START) {
-            // Main app is ready — fade out and close
-            if (stage != null) {
-                FadeTransition fade = new FadeTransition(Duration.millis(400), stage.getScene().getRoot());
-                fade.setFromValue(1);
-                fade.setToValue(0);
-                fade.setOnFinished(e -> stage.hide());
-                fade.play();
-            }
+            // Enforce minimum display time so the splash is always visible
+            long elapsed = System.currentTimeMillis() - startTime;
+            long delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
+            new Thread(() -> {
+                try { Thread.sleep(delay); } catch (InterruptedException ignored) {}
+                Platform.runLater(() -> {
+                    if (stage != null) stage.hide();
+                    READY.complete(null);
+                });
+            }, "PreloaderMinDisplay").start();
         }
     }
 
     @Override
     public void handleProgressNotification(ProgressNotification info) {
-        // Map progress ranges to loading messages
         double p = info.getProgress();
         String msg;
         if (p < 0.2) {
@@ -135,14 +175,14 @@ public final class JMCLPreloader extends Preloader {
         } else if (p < 0.4) {
             msg = "Initializing Java...";
         } else if (p < 0.6) {
-            msg = "Building user interface...";
+            msg = "Building interface...";
         } else if (p < 0.8) {
-            msg = "Checking for updates...";
+            msg = "Checking updates...";
         } else {
             msg = "Almost ready...";
         }
-        if (messageLabel != null) {
-            messageLabel.setText(msg);
+        if (statusLabel != null) {
+            Platform.runLater(() -> statusLabel.setText(msg));
         }
     }
 }

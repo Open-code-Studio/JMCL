@@ -79,9 +79,6 @@ public final class EntryPoint {
             }
         }
 
-        // Start prefetching MC changelog in background (ready by the time main window shows)
-        org.Open_code_Studio.jmcl.ui.main.ChangelogPrefetcher.startPrefetch();
-
         checkJavaFX();
         verifyJavaFX();
         addEnableNativeAccess();

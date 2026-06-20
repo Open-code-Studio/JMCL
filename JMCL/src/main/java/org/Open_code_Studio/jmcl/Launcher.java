@@ -41,6 +41,7 @@ import org.Open_code_Studio.jmcl.task.AsyncTaskExecutor;
 import org.Open_code_Studio.jmcl.task.Schedulers;
 import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
+import org.Open_code_Studio.jmcl.ui.JMCLPreloader;
 import org.Open_code_Studio.jmcl.ui.MacOSNativeUtils;
 import org.Open_code_Studio.jmcl.theme.Themes;
 import org.Open_code_Studio.jmcl.upgrade.UpdateChecker;
@@ -158,7 +159,8 @@ public final class Launcher extends Application {
                 UpdateChecker.init();
 
                 notifyPreloader(new Preloader.ProgressNotification(0.9));
-                primaryStage.show();
+                // Wait for preloader to finish its minimum display before showing main window
+                JMCLPreloader.readyFuture().thenRunAsync(() -> primaryStage.show(), Platform::runLater);
             });
         } catch (Throwable e) {
             CRASH_REPORTER.uncaughtException(Thread.currentThread(), e);

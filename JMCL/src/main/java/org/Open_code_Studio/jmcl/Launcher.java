@@ -164,12 +164,14 @@ public final class Launcher extends Application {
                 UpdateChecker.init();
 
                 notifyPreloader(new Preloader.ProgressNotification(0.9));
-                // Wait for preloader min display AND changelog cache before showing main window
-                CompletableFuture<?> changelogReady = ChangelogPrefetcher.getCachedData()
-                        .orTimeout(5, TimeUnit.SECONDS)
-                        .exceptionally(ex -> null);
-                CompletableFuture.allOf(JMCLPreloader.readyFuture(), changelogReady)
-                        .thenRunAsync(() -> primaryStage.show(), Platform::runLater);
+                // Step 1: Show main window minimized behind preloader
+                JMCLPreloader.readyFuture().thenRunAsync(() -> {
+                    primaryStage.setIconified(true);
+                    primaryStage.show();
+                }, Platform::runLater);
+                // Step 2: Restore when changelog is ready and preloader is done
+                JMCLPreloader.restoreFuture().thenRunAsync(() ->
+                        primaryStage.setIconified(false), Platform::runLater);
             });
         } catch (Throwable e) {
             CRASH_REPORTER.uncaughtException(Thread.currentThread(), e);

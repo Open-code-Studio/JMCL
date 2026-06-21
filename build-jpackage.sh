@@ -334,6 +334,7 @@ exec "\$RUNTIME/bin/java" \\
   -Djavafx.preloader=org.Open_code_Studio.jmcl.ui.JMCLPreloader \\
   -Xdock:icon="\$DIR/../Resources/$APP_NAME.icns" \\
   -Xdock:name="$APP_NAME" \\
+  -Dprism.order=es2 \\
   -Dsun.java2d.metal=true \\
   -Xmx1g \\
   -Djdk.lang.Process.launchMechanism=FORK \\
@@ -343,6 +344,16 @@ exec "\$RUNTIME/bin/java" \\
   -jar "\$JAR"
 LAUNCHER
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+
+# Copy compiled window tracker binary (CGWindowList, no permissions needed)
+TRACKER_SRC="$SCRIPT_DIR/JMCL/src/main/resources/assets/macos/jmcl_window_tracker"
+if [ -f "$TRACKER_SRC" ]; then
+    cp "$TRACKER_SRC" "$APP_BUNDLE/Contents/MacOS/jmcl_window_tracker"
+    chmod +x "$APP_BUNDLE/Contents/MacOS/jmcl_window_tracker"
+    echo "  Window tracker: OK"
+else
+    echo "  Window tracker: not found (CGWindowList fallback)"
+fi
 
 # Create Info.plist
 cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST

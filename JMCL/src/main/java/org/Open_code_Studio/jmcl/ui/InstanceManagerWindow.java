@@ -207,6 +207,7 @@ public final class InstanceManagerWindow extends Stage {
 
         trackerThread = Lang.thread(() -> {
             double lastX = Double.NaN, lastY = Double.NaN;
+            int consecutiveFailures = 0;
 
             while (process.isRunning()) {
                 try {
@@ -226,9 +227,18 @@ public final class InstanceManagerWindow extends Stage {
                                 setY(fy);
                             });
                         }
+                        consecutiveFailures = 0;
+                    } else {
+                        consecutiveFailures++;
                     }
-                } catch (Exception ignored) {
-                    // game window not ready yet, keep current position
+                } catch (Exception e) {
+                    consecutiveFailures++;
+                }
+
+                // Fall back to launcher position if tracker consistently fails
+                if (consecutiveFailures > 50) {
+                    Platform.runLater(this::positionNearLauncher);
+                    consecutiveFailures = 0;
                 }
 
                 try {
@@ -255,10 +265,30 @@ public final class InstanceManagerWindow extends Stage {
         };
     }
 
-    /// macOS: finds the game window via AppleScript + System Events.
-    /// Requires Accessibility permission for the launching app (Terminal.app / JMCL itself).
+    /// macOS: finds the game window. Primary method: CGWindowList helper (no permissions).
+    /// Fallback: AppleScript + System Events (requires Accessibility permission).
     private static @Nullable String[] getMacOSWindowBounds(long pid) throws IOException {
+        // Primary: native CGWindowList helper (no permissions, fast)
+        String cgResult = runScript(getTrackerBinary(), String.valueOf(pid));
+        if (!cgResult.isEmpty()) {
+            String[] bounds = parseCommaOutput(cgResult);
+            if (bounds != null) return bounds;
+        }
+        // Fallback: osascript (requires Accessibility permission)
         return parseCommaOutput(runScript("osascript", "-e", buildMacOSAppleScript(pid)));
+    }
+
+    /// Returns the path to the compiled CGWindowList tracker binary.
+    private static String getTrackerBinary() {
+        // Look for compiled binary next to the JAR, or use cached path
+        String jarPath = InstanceManagerWindow.class.getProtectionDomain()
+                .getCodeSource().getLocation().getPath();
+        // In .app bundle: Contents/app/xxx.jar -> Contents/MacOS/jmcl_window_tracker
+        java.io.File binary = new java.io.File(new java.io.File(jarPath).getParentFile()
+                .getParentFile(), "MacOS/jmcl_window_tracker");
+        if (binary.exists()) return binary.getAbsolutePath();
+        // Fallback: check project resources
+        return "jmcl_window_tracker";
     }
 
     /// Builds the AppleScript for finding a window by PID via System Events.

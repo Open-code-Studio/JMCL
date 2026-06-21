@@ -1,4 +1,0 @@
-/time set day
-/gamemode creative
-/kill
-/setworldspawn

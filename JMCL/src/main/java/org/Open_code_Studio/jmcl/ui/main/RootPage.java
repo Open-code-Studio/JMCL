@@ -61,6 +61,9 @@ import org.Open_code_Studio.jmcl.util.io.FileUtils;
 import org.Open_code_Studio.jmcl.util.platform.*;
 import org.Open_code_Studio.jmcl.util.versioning.VersionNumber;
 
+import javafx.stage.FileChooser;
+
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -235,6 +238,8 @@ public class RootPage extends DecoratorAnimatedPage implements DecoratorPage {
                     .startCategory(i18n("settings.launcher.general").toUpperCase(Locale.ROOT))
                     .add(launcherSettingsItem)
                     .add(terracottaItem)
+                    .startCategory(i18n("tools").toUpperCase(Locale.ROOT))
+                    .add(createNBTEditorItem())
                     .addNavigationDrawerItem(i18n("contact.chat"), SVG.CHAT, () -> {
                         Controllers.getSettingsPage().showFeedback();
                         Controllers.navigate(Controllers.getSettingsPage());
@@ -274,6 +279,28 @@ public class RootPage extends DecoratorAnimatedPage implements DecoratorPage {
                     getSkinnable().getMainPage().getProfile(),
                     getSkinnable().getMainPage().getVersions());
         }
+    }
+
+    private static AdvancedListItem createNBTEditorItem() {
+        AdvancedListItem item = new AdvancedListItem();
+        item.setLeftIcon(SVG.EDIT);
+        item.setTitle(i18n("tools.nbt_editor"));
+        item.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle(i18n("tools.nbt_editor"));
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("NBT Files", "*.dat", "*.dat_old", "*.mca", "*.mcr"));
+            File file = chooser.showOpenDialog(Controllers.getStage());
+            if (file != null) {
+                try {
+                    Controllers.navigate(new NBTEditorPage(file.toPath()));
+                } catch (Throwable ex) {
+                    Controllers.dialog(i18n("nbt.open.failed") + "\n\n" + StringUtils.getStackTrace(ex),
+                            i18n("message.error"), MessageDialogPane.MessageType.ERROR);
+                }
+            }
+        });
+        return item;
     }
 
     private boolean checkedModpack = false;

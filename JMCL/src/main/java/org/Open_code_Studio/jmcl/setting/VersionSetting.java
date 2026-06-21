@@ -442,7 +442,7 @@ public final class VersionSetting implements Cloneable, Observable {
         notPatchNativesProperty.set(notPatchNatives);
     }
 
-    private final BooleanProperty showLogsProperty = new SimpleBooleanProperty(this, "showLogs", false);
+    private final BooleanProperty showLogsProperty = new SimpleBooleanProperty(this, "showLogs", true);
 
     public BooleanProperty showLogsProperty() {
         return showLogsProperty;

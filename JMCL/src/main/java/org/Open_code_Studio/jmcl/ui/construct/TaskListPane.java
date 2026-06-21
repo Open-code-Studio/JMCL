@@ -73,6 +73,7 @@ import org.Open_code_Studio.jmcl.task.Task;
 import org.Open_code_Studio.jmcl.task.TaskExecutor;
 import org.Open_code_Studio.jmcl.task.TaskListener;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
+import org.Open_code_Studio.jmcl.ui.LogWindow;
 import org.Open_code_Studio.jmcl.ui.SVG;
 import org.Open_code_Studio.jmcl.util.FXThread;
 import org.jetbrains.annotations.NotNull;
@@ -112,10 +113,11 @@ public final class TaskListPane extends StackPane {
         viewLogButton.visibleProperty().bind(ConfigHolder.globalConfig().showInstallationLogProperty());
         viewLogButton.managedProperty().bind(ConfigHolder.globalConfig().showInstallationLogProperty());
         viewLogButton.setOnAction(e -> {
-            TaskLogDialog dialog = new TaskLogDialog();
-            dialog.startPolling();
-            dialog.show();
-            dialog.setOnCloseRequest(ev -> dialog.stopPolling());
+            LogWindow logWindow = LogWindow.LATEST.get();
+            if (logWindow != null) {
+                logWindow.show();
+                logWindow.toFront();
+            }
         });
 
         HBox buttonBar = new HBox(viewLogButton);

@@ -65,4 +65,9 @@ public final class NBTTreeItem extends TreeItem<NBTElement> {
     public @Nullable String getOverrideName() {
         return overrideName;
     }
+
+    /// Forces re-initialization of children from the underlying NBT data on next getChildren().
+    public void resetChildren() {
+        needInitChildren = true;
+    }
 }

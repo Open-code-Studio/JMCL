@@ -151,6 +151,9 @@ dependencies {
 
     embedResources(libs.authlib.injector)
     embedResources(libs.lwjgl.unsafe.agent)
+
+    // JCEF — Chromium browser for skinview3d (WebGL 3D skin preview)
+    // implementation("me.friwi:jcefmaven:2.2.0") // temporarily removed - jar missing from all mirrors
 }
 
 fun digest(algorithm: String, bytes: ByteArray): ByteArray = MessageDigest.getInstance(algorithm).digest(bytes)

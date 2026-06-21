@@ -35,8 +35,10 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.Open_code_Studio.jmcl.Metadata;
+import org.Open_code_Studio.jmcl.ui.main.ChangelogPrefetcher;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /// Preloader splash screen:
 /// - Rounded dark rectangle window
@@ -49,13 +51,20 @@ public final class JMCLPreloader extends Preloader {
     private static final int WIDTH = 560;
     private static final int HEIGHT = 320;
     private static final int RADIUS = 16;
-    private static final long MIN_DISPLAY_MS = 2000;
+    private static final long MIN_DISPLAY_MS = 3000;
 
-    /// Completes when the preloader has finished its minimum display time and hidden itself.
-    /// The main application waits on this before showing the primary stage.
+    /// Completes when the main window can show (behind preloader, minimized).
     private static final CompletableFuture<Void> READY = new CompletableFuture<>();
+    /// Completes when changelog is loaded and preloader should close.
+    private static final CompletableFuture<Void> RESTORE = new CompletableFuture<>();
 
     public static CompletableFuture<Void> readyFuture() { return READY; }
+    public static CompletableFuture<Void> restoreFuture() { return RESTORE; }
+
+    /// Called by MainPage when the changelog card has been rendered in the UI.
+    public static void onChangelogRendered() {
+        RESTORE.complete(null);
+    }
 
     private Stage stage;
     private Label statusLabel;
@@ -153,15 +162,25 @@ public final class JMCLPreloader extends Preloader {
     @Override
     public void handleStateChangeNotification(StateChangeNotification info) {
         if (info.getType() == StateChangeNotification.Type.BEFORE_START) {
+            // Signal: main window can show (behind preloader, minimized)
+            READY.complete(null);
+
+            // Wait for both: min display time AND changelog, then signal restore
             long elapsed = System.currentTimeMillis() - startTime;
-            long delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
-            new Thread(() -> {
-                try { Thread.sleep(delay); } catch (InterruptedException ignored) {}
-                Platform.runLater(() -> {
-                    if (stage != null) stage.hide();
-                    READY.complete(null);
-                });
-            }, "PreloaderDelay").start();
+            long minDelay = Math.max(0, MIN_DISPLAY_MS - elapsed);
+            CompletableFuture<Void> minWait = CompletableFuture.runAsync(() -> {
+                try { Thread.sleep(minDelay); } catch (InterruptedException ignored) {}
+            });
+            CompletableFuture<?> changelog = ChangelogPrefetcher.getCachedData()
+                    .orTimeout(8, TimeUnit.SECONDS).exceptionally(ex -> null);
+
+            CompletableFuture.allOf(minWait, changelog).thenRunAsync(() -> {
+                if (stage != null) {
+                    stage.setAlwaysOnTop(false);
+                    stage.hide();
+                }
+                // RESTORE is completed by MainPage.onChangelogRendered() after card appears
+            }, Platform::runLater);
         }
     }
 

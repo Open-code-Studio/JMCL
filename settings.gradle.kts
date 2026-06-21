@@ -1,4 +1,4 @@
-rootProject.name = "JVM-MCL3"
+rootProject.name = "JVM-MCL1"
 include(
     "JVM-MCL",
     "JVM-MCLCore",

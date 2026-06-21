@@ -61,6 +61,7 @@ import org.Open_code_Studio.jmcl.task.Task;
 import org.Open_code_Studio.jmcl.theme.Themes;
 import org.Open_code_Studio.jmcl.ui.Controllers;
 import org.Open_code_Studio.jmcl.ui.FXUtils;
+import org.Open_code_Studio.jmcl.ui.JMCLPreloader;
 import org.Open_code_Studio.jmcl.ui.SVG;
 import org.Open_code_Studio.jmcl.ui.animation.AnimationUtils;
 import org.Open_code_Studio.jmcl.ui.animation.ContainerAnimations;
@@ -144,17 +145,10 @@ public final class MainPage extends StackPane implements DecoratorPage {
         announcementBox = new VBox(16);
         announcementBox.setPadding(new Insets(15));
 
-        // Nightly / dev channel notice
-        if (Metadata.isNightly() || (Metadata.isDev() && !Objects.equals(Metadata.VERSION, config().getShownTips().get(ANNOUNCEMENT)))) {
-            String title;
-            String content;
-            if (Metadata.isNightly()) {
-                title = i18n("update.channel.nightly.title");
-                content = i18n("update.channel.nightly.hint");
-            } else {
-                title = i18n("update.channel.dev.title");
-                content = i18n("update.channel.dev.hint");
-            }
+        // Dev version notice — only shown for DEV-tagged versions
+        if (Metadata.VERSION.startsWith("DEV") && !Objects.equals(Metadata.VERSION, config().getShownTips().get(ANNOUNCEMENT))) {
+            String title = i18n("update.channel.dev.title");
+            String content = i18n("update.channel.dev.hint");
 
             VBox announcementCard = new VBox();
 
@@ -165,9 +159,7 @@ public final class MainPage extends StackPane implements DecoratorPage {
             JFXButton btnHide = new JFXButton();
             btnHide.setOnAction(e -> {
                 announcementBox.getChildren().remove(announcementCard);
-                if (Metadata.isDev()) {
-                    config().getShownTips().put(ANNOUNCEMENT, Metadata.VERSION);
-                }
+                config().getShownTips().put(ANNOUNCEMENT, Metadata.VERSION);
             });
             btnHide.getStyleClass().add("announcement-close-button");
             btnHide.setGraphic(SVG.CLOSE.createIcon(20));
@@ -640,5 +632,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
 
         // Add the changelog card to the persistent announcement box
         announcementBox.getChildren().add(card);
+
+        // Signal preloader: changelog is rendered, main window can restore to normal size
+        JMCLPreloader.onChangelogRendered();
     }
 }

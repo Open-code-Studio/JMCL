@@ -27,6 +27,8 @@ import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -65,6 +67,8 @@ import static org.Open_code_Studio.jmcl.util.logging.Logger.LOG;
  */
 public final class LogWindow extends Stage {
 
+    public static final ObjectProperty<LogWindow> LATEST = new SimpleObjectProperty<>();
+
     private static final Log4jLevel[] LEVELS = {Log4jLevel.FATAL, Log4jLevel.ERROR, Log4jLevel.WARN, Log4jLevel.INFO, Log4jLevel.DEBUG};
 
     private final CircularArrayList<Log> logs;
@@ -87,6 +91,7 @@ public final class LogWindow extends Stage {
 
     public LogWindow(ManagedProcess gameProcess, CircularArrayList<Log> logs) {
         Themes.applyNativeDarkMode(this);
+        LATEST.set(this);
 
         this.logs = logs;
         this.impl = new LogWindowImpl();

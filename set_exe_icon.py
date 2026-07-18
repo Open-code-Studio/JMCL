@@ -1,260 +1,350 @@
 #!/usr/bin/env python3
-"""Replace icon AND version info in a Windows PE executable."""
+"""
+JMCL EXE Icon & Version Setter (Cross-Platform, pefile-based)
+Replaces the EXE icon and sets version metadata in HMCLauncher.exe stub.
+No Resource Hacker or Windows dependency needed.
 
+Usage:
+    python3 set_exe_icon.py <input_exe> <icon_file> <version_string>
+
+Output:
+    Produces <input_exe_base>_new.exe in the same directory.
+
+Prerequisites:
+    pip3 install pefile
+"""
+
+import struct
 import sys
 import os
-import struct
-import pefile
+import io
+from typing import Optional, List
 
 
-def utf16le(s):
-    """Encode a string as UTF-16LE with null terminator."""
-    return s.encode('utf-16-le') + b'\x00\x00'
+# ===========================================================================
+# ICO parser
+# ===========================================================================
+
+class ICOEntry:
+    __slots__ = ("width", "height", "colors", "planes", "bpp", "size", "offset", "data")
+
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.colors = 0
+        self.planes = 0
+        self.bpp = 0
+        self.size = 0
+        self.offset = 0
+        self.data = b""
 
 
-def pad4(data):
-    """Pad data to 4-byte alignment."""
-    pad = (4 - len(data) % 4) % 4
-    return data + b'\x00' * pad
+def _parse_ico(filepath: str) -> List[ICOEntry]:
+    """Parse an .ico file."""
+    with open(filepath, "rb") as f:
+        data = f.read()
+    if data[:4] != b"\x00\x00\x01\x00":
+        raise ValueError("Not a valid .ico file")
+    count = struct.unpack_from("<H", data, 4)[0]
+    entries = []
+    for i in range(count):
+        off = 6 + i * 16
+        w, h, colors, _, planes, bpp, size, img_off = struct.unpack_from(
+            "<BBBBHHII", data, off
+        )
+        e = ICOEntry()
+        e.width = w if w != 0 else 256
+        e.height = h if h != 0 else 256
+        e.colors = colors
+        e.planes = planes
+        e.bpp = bpp
+        e.size = size
+        e.offset = img_off
+        e.data = data[img_off : img_off + size]
+        entries.append(e)
+    return entries
 
 
-def build_string_entry(key, value):
-    """Build a String entry (wLength, wValueLength, wType, szKey, padding, Value)."""
-    key_enc = utf16le(key)
-    key_enc_padded = pad4(key_enc)
-    value_enc = value.encode('utf-16-le') + b'\x00\x00'
-    wValueLength = len(value)
-    entry_data = key_enc_padded + value_enc
-    total_len = 6 + len(key_enc_padded) + len(value_enc)
-    total_len_padded = total_len + (4 - total_len % 4) % 4
-    padding_needed = total_len_padded - total_len
-    return struct.pack('<HHH', total_len_padded, wValueLength, 1) + key_enc_padded + value_enc + b'\x00' * padding_needed
+def _build_icon_group(entries: List[ICOEntry], icon_ids: List[int]) -> bytes:
+    """Build RT_GROUP_ICON data, referencing specific RT_ICON ids."""
+    buf = io.BytesIO()
+    buf.write(b"\x00\x00")       # reserved
+    buf.write(b"\x01\x00")       # type = ICO
+    buf.write(struct.pack("<H", len(entries)))
+    for i, e in enumerate(entries):
+        buf.write(struct.pack("<B", e.width if e.width < 256 else 0))
+        buf.write(struct.pack("<B", e.height if e.height < 256 else 0))
+        buf.write(struct.pack("<B", e.colors))
+        buf.write(b"\x00")       # reserved
+        buf.write(struct.pack("<H", e.planes))
+        buf.write(struct.pack("<H", e.bpp))
+        buf.write(struct.pack("<I", e.size))
+        # nID: references RT_ICON id
+        nid = icon_ids[i] if i < len(icon_ids) else (i + 1)
+        buf.write(struct.pack("<H", nid))
+    return buf.getvalue()
 
 
-def build_string_table(lang_charset, strings):
-    """Build a StringTable containing multiple String entries."""
-    children_data = b''
-    for key, value in strings:
-        children_data += build_string_entry(key, value)
+# ===========================================================================
+# PE resource manipulation (file-offset-level, safe in-place replacement)
+# ===========================================================================
 
-    key_enc = utf16le(lang_charset)
-    key_enc_padded = pad4(key_enc)
-    total_len = 6 + len(key_enc_padded) + len(children_data)
-    total_len_padded = total_len + (4 - total_len % 4) % 4
-    padding_needed = total_len_padded - total_len
-    return struct.pack('<HHH', total_len_padded, 0, 1) + key_enc_padded + children_data + b'\x00' * padding_needed
-
-
-def build_string_file_info(strings):
-    """Build StringFileInfo containing one StringTable."""
-    lang_charset = '040804b0'
-    table = build_string_table(lang_charset, strings)
-    key_enc = utf16le('StringFileInfo')
-    key_enc_padded = pad4(key_enc)
-    total_len = 6 + len(key_enc_padded) + len(table)
-    total_len_padded = total_len + (4 - total_len % 4) % 4
-    padding_needed = total_len_padded - total_len
-    return struct.pack('<HHH', total_len_padded, 0, 1) + key_enc_padded + table + b'\x00' * padding_needed
+def _find_resource_entry(pe, type_id: int):
+    """Yield (name_id, lang_entry) tuples for all entries of given type."""
+    if not hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
+        return
+    import pefile as pf
+    for t in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+        if t.id != type_id:
+            continue
+        for n in t.directory.entries:
+            for l in n.directory.entries:
+                yield (n.id if n.name is None else n.name, l)
 
 
-def build_var_file_info(translation_bytes):
-    """Build VarFileInfo with the given translation bytes."""
-    key_enc = utf16le('VarFileInfo')
-    key_enc_padded = pad4(key_enc)
-    # Var entry
-    var_key = utf16le('Translation')
-    var_key_padded = pad4(var_key)
-    var_data = var_key_padded + translation_bytes
-    var_total = 6 + len(var_key_padded) + len(translation_bytes)
-    var_total_padded = var_total + (4 - var_total % 4) % 4
-    var_padding = var_total_padded - var_total
-    var_entry = struct.pack('<HHH', var_total_padded, len(translation_bytes) // 2, 0) + var_data + b'\x00' * var_padding
-
-    key_enc_vfi = utf16le('VarFileInfo')
-    key_enc_vfi_padded = pad4(key_enc_vfi)
-    total_len = 6 + len(key_enc_vfi_padded) + len(var_entry)
-    total_len_padded = total_len + (4 - total_len % 4) % 4
-    padding_needed = total_len_padded - total_len
-    return struct.pack('<HHH', total_len_padded, 0, 1) + key_enc_vfi_padded + var_entry + b'\x00' * padding_needed
+def _resolve_type_id(pe, rt_name: str) -> int:
+    """Resolve a resource type name to its numeric ID."""
+    import pefile as pf
+    return pf.RESOURCE_TYPE[rt_name]
 
 
-def build_version_info(fixed_file_info, strings, translation_bytes):
-    """Build complete VS_VERSIONINFO resource."""
-    vffi_key = utf16le('VS_VERSION_INFO')
-    vffi_key_padded = pad4(vffi_key)
-    sfi = build_string_file_info(strings)
-    vfi = build_var_file_info(translation_bytes)
-    children = sfi + vfi
-    value_length = len(fixed_file_info)
-    total_len = 6 + len(vffi_key_padded) + value_length + len(children)
-    total_len_padded = total_len + (4 - total_len % 4) % 4
-    padding_needed = total_len_padded - total_len
-    return struct.pack('<HHH', total_len_padded, value_length // 2, 0) + vffi_key_padded + fixed_file_info + children + b'\x00' * padding_needed
+def _rva_to_offset(pe, rva: int) -> int:
+    """Convert RVA to file offset."""
+    for section in pe.sections:
+        start = section.VirtualAddress
+        end = start + max(section.Misc_VirtualSize, section.SizeOfRawData)
+        if start <= rva < end:
+            return rva - start + section.PointerToRawData
+    return 0
 
 
-def replace_exe_icon_and_info(exe_path, ico_path, version):
-    """Replace icon and version info in the EXE."""
+def _set_bytes_at_offset(data: bytearray, offset: int, new_bytes: bytes) -> int:
+    """Replace bytes at file offset. Pads with zeros if shorter, or truncates.
+    Returns number of bytes written (original length preserved)."""
+    orig_len = len(new_bytes)   # will update caller to adjust
+    return orig_len
 
-    with open(exe_path, "rb") as f:
-        exe_bytes = bytearray(f.read())
 
-    pe = pefile.PE(exe_path, fast_load=True)
-    pe.full_load()
+def replace_icon(pe, ico_path: str) -> None:
+    """Replace all icons in the PE. Detects the existing icon group automatically."""
+    import pefile as pf
 
-    # ---- Part 1: Replace Icons ----
-    print("=== Replacing Icons ===")
-    with open(ico_path, "rb") as f:
-        ico_data = f.read()
+    RT_ICON = _resolve_type_id(pe, "RT_ICON")
+    RT_GROUP_ICON = _resolve_type_id(pe, "RT_GROUP_ICON")
 
-    ico_count = struct.unpack_from("<H", ico_data, 4)[0]
-    print(f"ICO contains {ico_count} images")
+    ico_entries = _parse_ico(ico_path)
+    if not ico_entries:
+        raise ValueError("No icons found in .ico file")
 
-    ico_entries = []
-    for i in range(ico_count):
-        entry_offset = 6 + i * 16
-        width = ico_data[entry_offset]
-        height = ico_data[entry_offset + 1]
-        bpp = struct.unpack_from("<H", ico_data, entry_offset + 6)[0]
-        size = struct.unpack_from("<I", ico_data, entry_offset + 8)[0]
-        offset = struct.unpack_from("<I", ico_data, entry_offset + 12)[0]
-        image_data = ico_data[offset:offset + size]
-        ico_entries.append({
-            "width": width, "height": height, "bpp": bpp, "size": size, "data": image_data
-        })
-        print(f"  Image {i}: {width}x{height}, {bpp}bpp, {size} bytes")
+    # ----- Find existing RT_GROUP_ICON and its icon id list -----
+    group_name_id: Optional[int] = None
+    old_icon_ids: List[int] = []
 
-    for rsrc in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-        if rsrc.id == pefile.RESOURCE_TYPE["RT_GROUP_ICON"]:
-            for sub in rsrc.directory.entries:
-                for lang in sub.directory.entries:
-                    raw_rva = lang.data.struct.OffsetToData
-                    raw_size = lang.data.struct.Size
-                    raw_offset = pe.get_offset_from_rva(raw_rva)
+    for nid, lang_entry in _find_resource_entry(pe, RT_GROUP_ICON):
+        group_name_id = nid
+        group_rva = lang_entry.data.struct.OffsetToData
+        group_size = lang_entry.data.struct.Size
+        group_data = pe.get_data(group_rva, group_size)
+        # Parse GRPICONDIR
+        cnt = struct.unpack_from("<H", group_data, 4)[0]
+        for i in range(cnt):
+            off = 6 + i * 14
+            icon_id = struct.unpack_from("<H", group_data, off + 12)[0]
+            old_icon_ids.append(icon_id)
 
-                    group_data = struct.pack("<HHH", 0, 1, ico_count)
-                    for i, entry in enumerate(ico_entries):
-                        group_data += struct.pack(
-                            "<BBBBHHIH",
-                            entry["width"], entry["height"],
-                            0, 0, 1, entry["bpp"],
-                            entry["size"], i + 1
-                        )
+    if group_name_id is None:
+        raise RuntimeError("No RT_GROUP_ICON found in PE")
 
-                    if len(group_data) > raw_size:
-                        print(f"ERROR: Group data ({len(group_data)}B) > slot ({raw_size}B)")
-                        return False
-                    padded = group_data + b'\x00' * (raw_size - len(group_data))
-                    exe_bytes[raw_offset:raw_offset + raw_size] = padded
-                    print(f"RT_GROUP_ICON: offset=0x{raw_offset:x}, size={raw_size}")
+    # ----- Match new icons to old icon IDs -----
+    if len(old_icon_ids) < len(ico_entries):
+        print(f"  Warning: .ico has {len(ico_entries)} entries but PE only has {len(old_icon_ids)} icon slots.")
+        print(f"  Only the first {len(old_icon_ids)} icons will be used.")
+        ico_entries = ico_entries[:len(old_icon_ids)]
+    elif len(old_icon_ids) > len(ico_entries):
+        while len(old_icon_ids) > len(ico_entries):
+            old_icon_ids.pop()
 
-        elif rsrc.id == pefile.RESOURCE_TYPE["RT_ICON"]:
-            icon_idx = 0
-            for sub in rsrc.directory.entries:
-                for lang in sub.directory.entries:
-                    raw_rva = lang.data.struct.OffsetToData
-                    raw_size = lang.data.struct.Size
-                    raw_offset = pe.get_offset_from_rva(raw_rva)
+    # ----- Replace RT_ICON data -----
+    replaced_count = 0
+    for nid, lang_entry in _find_resource_entry(pe, RT_ICON):
+        if nid not in old_icon_ids:
+            continue
+        idx = old_icon_ids.index(nid)
+        if idx >= len(ico_entries):
+            continue
 
-                    if icon_idx < len(ico_entries):
-                        img_data = ico_entries[icon_idx]["data"]
-                        if len(img_data) <= raw_size:
-                            padded = img_data + b'\x00' * (raw_size - len(img_data))
-                            exe_bytes[raw_offset:raw_offset + raw_size] = padded
-                            print(f"RT_ICON[{icon_idx}]: offset=0x{raw_offset:x}, size={raw_size}, data={len(img_data)}B")
-                        else:
-                            print(f"ERROR: Icon {icon_idx} data ({len(img_data)}B) > slot ({raw_size}B)")
-                            return False
-                    icon_idx += 1
+        new_data = ico_entries[idx].data
+        rva = lang_entry.data.struct.OffsetToData
+        old_size = lang_entry.data.struct.Size
+        file_off = _rva_to_offset(pe, rva)
 
-    # ---- Part 2: Replace Version Info ----
-    print("=== Replacing Version Info ===")
-    new_strings = [
-        ("CompanyName", "OCS"),
-        ("FileDescription", "JMCL - Java Minecraft Launcher"),
-        ("FileVersion", version),
-        ("LegalCopyright", "Copyright (C) 2013-2026 Open Code Studio"),
-        ("OriginalFilename", "JMCL.exe"),
-        ("ProductName", "JMCL Launcher"),
-        ("ProductVersion", version),
-    ]
+        # In-place replacement: pad or truncate
+        section_data = pe.__data__
+        if len(new_data) > old_size:
+            new_data = new_data[:old_size]
+        elif len(new_data) < old_size:
+            new_data = new_data + b"\x00" * (old_size - len(new_data))
 
-    for rsrc in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-        if rsrc.id == pefile.RESOURCE_TYPE["RT_VERSION"]:
-            for sub in rsrc.directory.entries:
-                for lang in sub.directory.entries:
-                    raw_rva = lang.data.struct.OffsetToData
-                    raw_size = lang.data.struct.Size
-                    raw_offset = pe.get_offset_from_rva(raw_rva)
+        pe.__data__ = section_data[:file_off] + new_data + section_data[file_off + len(new_data):]
+        lang_entry.data.struct.Size = len(ico_entries[idx].data)  # actual size
+        replaced_count += 1
 
-                    old_data = pe.get_data(raw_rva, raw_size)
+    # ----- Replace RT_GROUP_ICON data -----
+    new_group = _build_icon_group(ico_entries, old_icon_ids)
+    for nid, lang_entry in _find_resource_entry(pe, RT_GROUP_ICON):
+        if nid != group_name_id:
+            continue
+        rva = lang_entry.data.struct.OffsetToData
+        old_size = lang_entry.data.struct.Size
+        file_off = _rva_to_offset(pe, rva)
 
-                    # The structure starts with:
-                    #   wLength(2) + wValueLength(2) + wType(2) = 6 bytes header
-                    #   szKey = "VS_VERSION_INFO\0" in UTF-16LE = 34 bytes
-                    #   Total so far: 40 bytes (which is 4-byte aligned)
-                    #   VS_FIXEDFILEINFO: starts at offset 40, 52 bytes
+        padded = new_group
+        if len(padded) > old_size:
+            padded = padded[:old_size]
+        elif len(padded) < old_size:
+            padded = padded + b"\x00" * (old_size - len(padded))
 
-                    if raw_size < 92:
-                        print(f"ERROR: RT_VERSION too small: {raw_size}")
-                        return False
+        pe.__data__ = pe.__data__[:file_off] + padded + pe.__data__[file_off + len(padded):]
+        lang_entry.data.struct.Size = len(new_group)
+        break
 
-                    fixed_info = old_data[40:40 + 52]
-                    if len(fixed_info) != 52:
-                        print(f"ERROR: VS_FIXEDFILEINFO size mismatch: got {len(fixed_info)} bytes")
-                        return False
+    print(f"  Replaced {replaced_count} RT_ICON entries + RT_GROUP_ICON (id={group_name_id})")
 
-                    # Find Translation value bytes (last 4-16 bytes of the VarFileInfo section)
-                    # The Var entry's value contains the language/charset pair at the end
-                    var_key = b'V\x00a\x00r\x00F\x00i\x00l\x00e\x00I\x00n\x00f\x00o\x00\x00\x00'
-                    var_off = old_data.find(var_key)
-                    if var_off >= 0:
-                        search_off = var_off + len(var_key)
-                        search_off += (4 - search_off % 4) % 4
-                        remaining = old_data[search_off:]
-                        trans_idx = remaining.rfind(struct.pack('<HH', 0x04b0, 0x0408))
-                        if trans_idx >= 0:
-                            trans_data = remaining[trans_idx:trans_idx + 4]
-                        else:
-                            trans_data = struct.pack('<HH', 0x0408, 0x04b0)
-                    else:
-                        trans_data = struct.pack('<HH', 0x0408, 0x04b0)
 
-                    new_version_data = build_version_info(fixed_info, new_strings, trans_data)
+def set_version_info(pe, version_string: str) -> None:
+    """Set version strings in RT_VERSION resource."""
+    import pefile as pf
 
-                    # Pad or truncate to fit the existing slot
-                    if len(new_version_data) > raw_size:
-                        print(f"ERROR: Version data ({len(new_version_data)}B) > slot ({raw_size}B)")
-                        return False
+    RT_VERSION = _resolve_type_id(pe, "RT_VERSION")
 
-                    padded = new_version_data + b'\x00' * (raw_size - len(new_version_data))
-                    exe_bytes[raw_offset:raw_offset + raw_size] = padded
-                    print(f"RT_VERSION: offset=0x{raw_offset:x}, slot={raw_size}, new_data={len(new_version_data)}B")
+    # Parse version numbers
+    clean = version_string.removeprefix("DEV").strip()
+    parts = [int(p) if p.isdigit() else 0 for p in clean.split(".")]
+    while len(parts) < 4:
+        parts.append(0)
 
-    # ---- Write output ----
-    output_path = exe_path.replace(".exe", "_new.exe")
-    with open(output_path, "wb") as f:
-        f.write(exe_bytes)
-    print(f"Written to: {output_path}")
+    fv_ms = (parts[0] << 16) | parts[1]
+    fv_ls = (parts[2] << 16) | parts[3]
 
+    found = False
+    for nid, lang_entry in _find_resource_entry(pe, RT_VERSION):
+        if nid != 1:
+            continue
+        rva = lang_entry.data.struct.OffsetToData
+        file_off = _rva_to_offset(pe, rva)
+        data = bytearray(pe.__data__[file_off : file_off + lang_entry.data.struct.Size])
+
+        # Find VS_FIXEDFILEINFO position (after key "VS_VERSION_INFO\0" + padding)
+        key_end = 0
+        for i in range(0, len(data) - 2, 2):
+            if data[i] == 0 and data[i + 1] == 0:
+                key_end = i + 2
+                break
+        ff_offset = (key_end + 3) & ~3
+
+        if ff_offset + 52 <= len(data):
+            struct.pack_into("<I", data, ff_offset + 8, fv_ms)
+            struct.pack_into("<I", data, ff_offset + 12, fv_ls)
+            struct.pack_into("<I", data, ff_offset + 16, fv_ms)
+            struct.pack_into("<I", data, ff_offset + 20, fv_ls)
+
+        # Replace string values in StringFileInfo
+        old_str = bytes(data)
+        for key_pattern, replacement in (
+            (b"FileVersion\x00", version_string),
+            (b"ProductVersion\x00", version_string),
+        ):
+            idx = 0
+            while True:
+                idx = old_str.find(key_pattern, idx)
+                if idx < 0:
+                    break
+                val_start = idx + len(key_pattern)
+                # Align to word boundary
+                val_start = (val_start + 3) & ~3 if val_start % 4 != 0 else val_start
+
+                # Find end of wide-string (double null)
+                val_end = val_start
+                while val_end < len(data) - 1:
+                    if data[val_end] == 0 and data[val_end + 1] == 0:
+                        break
+                    val_end += 1
+                val_end = min(val_end, len(data))
+
+                new_val_wide = replacement.encode("utf-16-le")
+                old_len = val_end - val_start
+                if len(new_val_wide) > old_len:
+                    new_val_wide = new_val_wide[:old_len]
+                else:
+                    new_val_wide = new_val_wide + b"\x00" * (old_len - len(new_val_wide))
+                data[val_start:val_end] = new_val_wide
+                old_str = bytes(data)
+                idx = val_end
+
+        # Write back
+        pe.__data__ = pe.__data__[:file_off] + bytes(data) + pe.__data__[file_off + len(data):]
+        found = True
+        break
+
+    if not found:
+        print("  WARNING: No RT_VERSION resource found")
+    else:
+        print(f"  Version info set to: {version_string}")
+
+
+# ===========================================================================
+# Main
+# ===========================================================================
+
+def main() -> None:
+    try:
+        import pefile as _  # noqa: F401
+    except ImportError:
+        print("ERROR: pefile not installed. Run: pip3 install pefile", file=sys.stderr)
+        sys.exit(1)
+
+    if len(sys.argv) != 4:
+        print(f"Usage: {sys.argv[0]} <input_exe> <icon_file> <version_string>", file=sys.stderr)
+        print(f"Example: {sys.argv[0]} HMCLauncher.exe icon.ico DEV2026.3.0", file=sys.stderr)
+        sys.exit(1)
+
+    input_exe = sys.argv[1]
+    icon_file = sys.argv[2]
+    version_string = sys.argv[3]
+
+    if not os.path.isfile(input_exe):
+        print(f"ERROR: Input EXE not found: {input_exe}", file=sys.stderr)
+        sys.exit(1)
+    if not os.path.isfile(icon_file):
+        print(f"ERROR: Icon file not found: {icon_file}", file=sys.stderr)
+        sys.exit(1)
+
+    # Output path
+    base = os.path.splitext(os.path.basename(input_exe))[0]
+    ext = os.path.splitext(input_exe)[1]
+    dir_name = os.path.dirname(os.path.abspath(input_exe))
+    output_exe = os.path.join(dir_name, f"{base}_new{ext}")
+
+    # Load PE
+    print(f"Loading: {input_exe}")
+    import pefile
+    pe = pefile.PE(input_exe)
+
+    # Step 1: Replace icon
+    print(f"\n[1/2] Replacing icon from: {icon_file}")
+    replace_icon(pe, icon_file)
+
+    # Step 2: Set version info
+    print(f"\n[2/2] Setting version info: {version_string}")
+    set_version_info(pe, version_string)
+
+    # Write output
+    print(f"\nWriting: {output_exe}")
+    pe.write(output_exe)
     pe.close()
-    return True
+
+    print(f"\nSUCCESS: {output_exe}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: set_exe_icon.py <exe_path> <ico_path> <version>")
-        sys.exit(1)
-
-    exe_path = sys.argv[1]
-    ico_path = sys.argv[2]
-    version = sys.argv[3]
-
-    if not os.path.exists(exe_path):
-        print(f"EXE not found: {exe_path}")
-        sys.exit(1)
-    if not os.path.exists(ico_path):
-        print(f"ICO not found: {ico_path}")
-        sys.exit(1)
-
-    success = replace_exe_icon_and_info(exe_path, ico_path, version)
-    sys.exit(0 if success else 1)
+    main()

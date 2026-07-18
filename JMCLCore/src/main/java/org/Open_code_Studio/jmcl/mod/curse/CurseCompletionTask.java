@@ -153,7 +153,9 @@ public final class CurseCompletionTask extends Task<Void> {
                             return Stream.empty();
                         }
 
-                        var task = new FileDownloadTask(f.url(), path);
+                        var task = new FileDownloadTask(
+                                dependency.getDownloadProvider().injectURL(f.url()).toString(),
+                                path);
                         task.setCacheRepository(dependency.getCacheRepository());
                         task.setCaching(true);
                         return Stream.of(task.withCounter("jmcl.modpack.download"));

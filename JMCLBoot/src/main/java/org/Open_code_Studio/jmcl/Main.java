@@ -32,7 +32,7 @@ import java.util.ResourceBundle;
  */
 public final class Main {
     private static final int MINIMUM_JAVA_VERSION = 17;
-    private static final String DOWNLOAD_PAGE = "https://open-code-studio.github.io/JVM-MCL-website/download/";
+    private static final String DOWNLOAD_PAGE = "https://open-code-studio.github.io/JMCL-website/download/";
 
     private Main() {
     }

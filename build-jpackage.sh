@@ -128,6 +128,64 @@ if [ "$SKIP_BUILD" = false ]; then
         clean build -x test
 
     echo "Build complete."
+
+    # ---- Post-build: EXE icon & version (required when EXE exists, FAILS if tools missing) ----
+    echo ""
+    echo "=== Post-build: EXE icon & version ==="
+
+    PYTHON_CMD=""
+    for py in python3 python; do
+        if command -v "$py" >/dev/null 2>&1; then PYTHON_CMD="$py"; break; fi
+    done
+    if [ -z "$PYTHON_CMD" ]; then
+        echo "ERROR: Python not found (python3 or python required)"
+        exit 1
+    fi
+    if ! "$PYTHON_CMD" -c "import pefile" 2>/dev/null; then
+        echo "ERROR: pefile not installed. Run: pip3 install pefile"
+        exit 1
+    fi
+    if [ ! -f "$SCRIPT_DIR/set_exe_icon.py" ]; then
+        echo "ERROR: set_exe_icon.py not found"
+        exit 1
+    fi
+
+    JAR_FILE=$(ls -t "$BUILD_DIR"/*.jar 2>/dev/null | head -1)
+    EXE_FILE=$(ls -t "$BUILD_DIR"/*.exe 2>/dev/null | head -1)
+
+    if [ -z "$JAR_FILE" ] || [ -z "$EXE_FILE" ]; then
+        echo "  No EXE file in $BUILD_DIR, skipping EXE post-processing."
+    else
+        unzip -p "$JAR_FILE" "assets/HMCLauncher.exe" > /tmp/HMCLauncher_original.exe
+        if [ ! -f /tmp/HMCLauncher_original.exe ]; then
+            echo "ERROR: Could not extract HMCLauncher.exe from JAR"
+            exit 1
+        fi
+        STUB_SIZE=$(wc -c < /tmp/HMCLauncher_original.exe | tr -d ' ')
+        echo "  Extracted HMCLauncher.exe ($STUB_SIZE bytes)"
+
+        RAW_VERSION=$(unzip -p "$JAR_FILE" "assets/jvmmcl.properties" 2>/dev/null \
+            | grep "^jvmmcl.version=" | cut -d= -f2 || echo "$APP_VERSION")
+        echo "  Version: $RAW_VERSION"
+
+        ICON_JPG="$SCRIPT_DIR/IMG_0132.JPG"
+        if [ ! -f "$ICON_JPG" ]; then
+            echo "ERROR: IMG_0132.JPG not found, cannot create EXE icon"
+            exit 1
+        fi
+        "$JAVA_HOME/bin/javac" -cp "$SCRIPT_DIR" "$SCRIPT_DIR/CreateIcon.java" || exit 1
+        "$JAVA_HOME/bin/java" -cp "$SCRIPT_DIR" CreateIcon "$ICON_JPG" /tmp/icon.ico || exit 1
+        ICO_SIZE=$(wc -c < /tmp/icon.ico | tr -d ' ')
+        echo "  ICO created ($ICO_SIZE bytes)"
+
+        "$PYTHON_CMD" "$SCRIPT_DIR/set_exe_icon.py" /tmp/HMCLauncher_original.exe /tmp/icon.ico "$RAW_VERSION" || exit 1
+        if [ ! -f /tmp/HMCLauncher_original_new.exe ]; then
+            echo "ERROR: set_exe_icon.py did not produce output"
+            exit 1
+        fi
+        cat /tmp/HMCLauncher_original_new.exe "$JAR_FILE" > "$EXE_FILE"
+        echo "  EXE icon & version updated: $EXE_FILE"
+    fi
 else
     echo ""
     echo "=== Skipping build (--skip-build) ==="
@@ -422,25 +480,84 @@ else
 fi
 
 # ============================================================================
-# Step 7: Create DMG with dmgbuild (includes multi-language license)
+# Step 7: Create DMG manually (UDRW → AppleScript configure → UDZO)
 # ============================================================================
 echo ""
-echo "=== Step 7: Creating DMG with dmgbuild ==="
+echo "=== Step 7: Creating DMG ==="
 
 DMG_FINAL="$DEST_DIR/${APP_NAME}-${APP_VERSION}.dmg"
-DMGBUILD_SETTINGS="$LICENSES_DIR/dmgbuild_settings.py"
+DMG_RW="/tmp/jmcl-dmg-rw-$$.dmg"
+BG_PNG="$LICENSES_DIR/dmg_background.png"
+LICENSE_RTF="$SCRIPT_DIR/license.rtf"
 
-# Remove previous DMG
-rm -f "$DMG_FINAL"
+# Clean stale mounts
+for mp in /Volumes/JMCL /Volumes/JMCL\ 1; do
+    hdiutil detach "$mp" -force 2>/dev/null || true
+done
+rm -f "$DMG_FINAL" "$DMG_RW"
 
-# Run dmgbuild
-"$DMGBUILD" \
-    -D app="$APP_BUNDLE" \
-    -D version="$APP_VERSION" \
-    -D licenses_dir="$LICENSES_DIR" \
-    -s "$DMGBUILD_SETTINGS" \
-    "$APP_NAME" \
-    "$DMG_FINAL"
+# 7a. Generate background
+echo "  Generating DMG background..."
+python3 "$BG_SCRIPT" "$BG_PNG" || true
+
+# 7b. Create UDRW DMG
+echo "  Creating UDRW DMG..."
+hdiutil create -size 300m -fs HFS+ -volname "$APP_NAME" -ov "$DMG_RW" >/dev/null 2>&1 || exit 1
+
+# 7c. Mount (let hdiutil pick mount point auto, resolve below)
+echo "  Mounting..."
+ATTACH_OUT=$(hdiutil attach "$DMG_RW" -noverify -nobrowse 2>&1)
+MNT_POINT=$(echo "$ATTACH_OUT" | grep -o '/Volumes/[^ ]*' | head -1)
+if [ -z "$MNT_POINT" ]; then
+    echo "ERROR: Failed to mount DMG"
+    echo "$ATTACH_OUT"
+    exit 1
+fi
+echo "  Mounted at: $MNT_POINT"
+
+# 7d. Copy app + symlink + background
+echo "  Copying files..."
+cp -R "$APP_BUNDLE" "$MNT_POINT/"
+ln -sf /Applications "$MNT_POINT/Applications"
+mkdir -p "$MNT_POINT/.background"
+cp "$BG_PNG" "$MNT_POINT/.background/background.png"
+
+# 7e. License agreement (optional RTF)
+if [ -f "$LICENSE_RTF" ]; then
+    cp "$LICENSE_RTF" "$MNT_POINT/.background/"
+fi
+
+# 7f. Configure Finder window via AppleScript
+echo "  Configuring Finder window..."
+osascript -e "
+tell application \"Finder\"
+    set dm to disk \"$APP_NAME\"
+    open dm
+    set current view of container window of dm to icon view
+    set toolbar visible of container window of dm to false
+    set statusbar visible of container window of dm to false
+    set bounds of container window of dm to {200, 150, 860, 550}
+    set viewOptions to the icon view options of container window of dm
+    set background picture of viewOptions to file \".background:background.png\" of dm
+    set arrangement of viewOptions to not arranged
+    set icon size of viewOptions to 96
+    set position of item \"$APP_NAME.app\" of dm to {190, 188}
+    set position of item \"Applications\" of dm to {470, 188}
+    close container window of dm
+end tell
+" 2>/dev/null || echo "  (AppleScript background setup skipped)"
+
+# 7g. Detach
+echo "  Detaching..."
+sync
+hdiutil detach "$MNT_POINT" -force >/dev/null 2>&1 || true
+
+# 7h. Convert to compressed UDZO
+echo "  Converting to UDZO..."
+hdiutil convert "$DMG_RW" -format UDZO -imagekey zlib-level=9 -o "$DMG_FINAL" >/dev/null 2>&1 || exit 1
+
+# Clean up
+rm -f "$DMG_RW"
 
 echo ""
 echo "=== BUILD SUCCESSFUL ==="

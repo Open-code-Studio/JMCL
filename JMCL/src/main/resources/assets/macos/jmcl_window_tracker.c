@@ -23,28 +23,25 @@ int main(int argc, char *argv[]) {
     if (!windowList) return 1;
 
     CFIndex count = CFArrayGetCount(windowList);
+    double bestX = 0, bestY = 0, bestW = 0, bestH = 0;
+    double bestScore = -1;
     int found = 0;
 
     for (CFIndex i = 0; i < count; i++) {
         CFDictionaryRef window = (CFDictionaryRef)CFArrayGetValueAtIndex(windowList, i);
         if (!window) continue;
 
-        // Get PID
         CFNumberRef pidRef = CFDictionaryGetValue(window, kCGWindowOwnerPID);
         if (!pidRef) continue;
         long pid = 0;
         CFNumberGetValue(pidRef, kCFNumberSInt32Type, &pid);
         if (pid != targetPid) continue;
 
-        // Skip off-screen windows (layer < 0)
+        long layer = 0;
         CFNumberRef layerRef = CFDictionaryGetValue(window, kCGWindowLayer);
-        if (layerRef) {
-            long layer = 0;
-            CFNumberGetValue(layerRef, kCFNumberSInt32Type, &layer);
-            if (layer > 1000) continue; // skip menus, tooltips, dock
-        }
+        if (layerRef) CFNumberGetValue(layerRef, kCFNumberSInt32Type, &layer);
+        if (layer > 1000) continue;
 
-        // Get bounds
         CFDictionaryRef boundsRef = CFDictionaryGetValue(window, kCGWindowBounds);
         if (!boundsRef) continue;
 
@@ -53,16 +50,26 @@ int main(int argc, char *argv[]) {
         CFNumberRef ny = CFDictionaryGetValue(boundsRef, CFSTR("Y"));
         CFNumberRef nw = CFDictionaryGetValue(boundsRef, CFSTR("Width"));
         CFNumberRef nh = CFDictionaryGetValue(boundsRef, CFSTR("Height"));
-        if (nx && ny && nw) {
+        if (nx && ny && nw && nh) {
             CFNumberGetValue(nx, kCFNumberDoubleType, &x);
             CFNumberGetValue(ny, kCFNumberDoubleType, &y);
             CFNumberGetValue(nw, kCFNumberDoubleType, &w);
+            CFNumberGetValue(nh, kCFNumberDoubleType, &h);
 
-            // Prefer main window or the largest visible one
-            printf("%.0f,%.0f,%.0f\n", x, y, w);
-            found = 1;
-            break; // first visible window is usually the game window
+            // Score: prefer layer-0 windows with large area (main game window)
+            double area = w * h;
+            double score = area;
+            if (layer == 0) score += 10000000;  // heavy bias for normal windows
+            if (score > bestScore) {
+                bestScore = score;
+                bestX = x; bestY = y; bestW = w; bestH = h;
+                found = 1;
+            }
         }
+    }
+
+    if (found) {
+        printf("%.0f,%.0f,%.0f,%.0f\n", bestX, bestY, bestW, bestH);
     }
 
     CFRelease(windowList);

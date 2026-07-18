@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.glavo.hmcl.openjfx</groupId>
+  <artifactId>javafx-controls</artifactId>
+  <version>18.0.2+1-arm64</version>
+  <description>OpenJFX JavaFX</description>
+  <name>openjfx</name>
+  <url>https://github.com/openjdk/jfx</url>
+  <licenses>
+    <license>
+      <name>GPL v2 with Classpath Exception</name>
+      <url>https://github.com/openjdk/jfx/blob/master/LICENSE</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>glavo</id>
+      <name>Glavo</name>
+      <email>zjx001202@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/openjdk/jfx</url>
+  </scm>
+  <parent>
+    <groupId>org.glavo.hmcl.openjfx</groupId>
+    <artifactId>javafx</artifactId>
+    <version>18.0.2+1-arm64</version>
+  </parent>
+  <dependencies>
+    <dependency>
+      <groupId>org.glavo.hmcl.openjfx</groupId>
+      <artifactId>javafx-controls</artifactId>
+      <version>18.0.2+1-arm64</version>
+      <classifier>${javafx.platform}</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.glavo.hmcl.openjfx</groupId>
+      <artifactId>javafx-graphics</artifactId>
+      <version>18.0.2+1-arm64</version>
+    </dependency>
+  </dependencies>
+</project>

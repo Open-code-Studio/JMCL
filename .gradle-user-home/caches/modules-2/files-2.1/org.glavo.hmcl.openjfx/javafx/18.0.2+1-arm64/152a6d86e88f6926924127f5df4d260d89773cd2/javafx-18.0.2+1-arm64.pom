@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.glavo.hmcl.openjfx</groupId>
+    <artifactId>javafx</artifactId>
+    <version>18.0.2+1-arm64</version>
+    <packaging>pom</packaging>
+    <name>openjfx</name>
+    <description>OpenJFX JavaFX</description>
+    <url>https://github.com/openjdk/jfx</url>
+    <licenses>
+        <license>
+            <name>GPL v2 with Classpath Exception</name>
+            <url>https://github.com/openjdk/jfx/blob/master/LICENSE</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>glavo</id>
+            <name>Glavo</name>
+            <email>zjx001202@gmail.com</email>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/openjdk/jfx</url>
+    </scm>
+    <properties>
+        <javafx.version>18.0.2+1-arm64</javafx.version>
+    </properties>
+    <dependencyManagement></dependencyManagement>
+    <profiles>
+        <profile>
+            <id>linux</id>
+            <activation>
+                <os>
+                    <name>linux</name>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>linux</javafx.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>macosx</id>
+            <activation>
+                <os>
+                    <name>mac os x</name>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>mac</javafx.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>windows</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <javafx.platform>win</javafx.platform>
+            </properties>
+        </profile>
+        <profile>
+            <id>javafx.platform.custom</id>
+            <activation>
+                <property>
+                    <name>javafx.platform</name>
+                </property>
+            </activation>
+            <properties>
+                <javafx.platform>${javafx.platform}</javafx.platform>
+            </properties>
+        </profile>
+    </profiles>
+</project>

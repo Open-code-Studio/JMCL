@@ -50,9 +50,8 @@ import org.Open_code_Studio.jmcl.util.io.JarUtils;
 import org.Open_code_Studio.jmcl.util.platform.Platform;
 
 import javax.swing.*;
-import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.BorderLayout;
+import java.awt.HeadlessException;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -60,8 +59,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
-import java.util.Collection;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,13 +89,17 @@ public final class SelfDependencyPatcher {
         if (customUrl == null) {
             if (System.getProperty("user.country", "").equalsIgnoreCase("CN")) {
                 defaultRepository = Repository.TENCENTCLOUD_MIRROR;
+                repositories = List.of(Repository.TENCENTCLOUD_MIRROR, Repository.ALIYUN_MIRROR,
+                        Repository.HUAWEICLOUD_MIRROR, Repository.MAVEN_CENTRAL);
             } else {
                 defaultRepository = Repository.MAVEN_CENTRAL;
+                repositories = List.of(Repository.MAVEN_CENTRAL, Repository.TENCENTCLOUD_MIRROR,
+                        Repository.ALIYUN_MIRROR, Repository.HUAWEICLOUD_MIRROR);
             }
-            repositories = List.of(Repository.MAVEN_CENTRAL, Repository.TENCENTCLOUD_MIRROR);
         } else {
             defaultRepository = new Repository(String.format(i18n("repositories.custom"), customUrl), customUrl);
-            repositories = List.of(Repository.MAVEN_CENTRAL, Repository.TENCENTCLOUD_MIRROR, defaultRepository);
+            repositories = List.of(Repository.MAVEN_CENTRAL, Repository.TENCENTCLOUD_MIRROR,
+                    Repository.ALIYUN_MIRROR, Repository.HUAWEICLOUD_MIRROR, defaultRepository);
         }
     }
 
@@ -149,6 +150,8 @@ public final class SelfDependencyPatcher {
     private record Repository(String name, String url) {
         public static final Repository MAVEN_CENTRAL = new Repository(i18n("repositories.maven_central"), "https://repo1.maven.org/maven2");
         public static final Repository TENCENTCLOUD_MIRROR = new Repository(i18n("repositories.tencentcloud_mirror"), "https://mirrors.cloud.tencent.com/nexus/repository/maven-public");
+        public static final Repository ALIYUN_MIRROR = new Repository(i18n("repositories.aliyun_mirror"), "https://maven.aliyun.com/repository/public");
+        public static final Repository HUAWEICLOUD_MIRROR = new Repository(i18n("repositories.huaweicloud_mirror"), "https://repo.huaweicloud.com/repository/maven");
 
         public String resolveDependencyURL(DependencyDescriptor descriptor) {
             return String.format("%s/%s/%s/%s/%s",
@@ -374,47 +377,49 @@ public final class SelfDependencyPatcher {
     }
 
     /**
-     * Download dependencies.
+     * Download dependencies with the enhanced progress window.
      *
      * @throws IOException When the files cannot be fetched or saved.
      */
     private void fetchDependencies(List<DependencyDescriptor> dependencies) throws IOException {
         SwingUtils.initLookAndFeel();
 
-        boolean isFirstTime = true;
-
         Repository repository = defaultRepository;
-
         int count = 0;
+
         while (true) {
             AtomicBoolean isCancelled = new AtomicBoolean();
             AtomicBoolean showDetails = new AtomicBoolean();
 
-            ProgressFrame dialog;
+            DownloadProgressWindow dialog;
             try {
-                dialog = new SwingProgressFrame(i18n("download.javafx"));
+                String header = i18n("download.javafx.notes");
+                dialog = new DownloadProgressWindow(
+                        i18n("download.javafx"),
+                        "<html>" + header.replace("\n", "<br>") + "</html>",
+                        dependencies.size(),
+                        isCancelled);
             } catch (HeadlessException e) {
                 LOG.warning("Failed to open dialog", e);
-                dialog = new FakeProgressFrame();
+                // Headless fallback — download without UI
+                downloadHeadless(dependencies, repository);
+                return;
             }
 
-            dialog.setProgressMaximum(dependencies.size() + 1);
-            dialog.setProgress(count);
-            dialog.setOnCancel(() -> isCancelled.set(true));
             dialog.setOnChangeSource(() -> {
                 isCancelled.set(true);
                 showDetails.set(true);
             });
+
             dialog.setVisible(true);
+
             try {
-                if (isFirstTime) {
-                    isFirstTime = false;
-                    try {
-                        //noinspection BusyWait
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ignored) {
-                    }
+                try {
+                    // Brief pause so the user can read the window
+                    Thread.sleep(500);
+                } catch (InterruptedException ignored) {
                 }
+
                 Files.createDirectories(DependencyDescriptor.DEPENDENCIES_DIR_PATH);
                 for (int i = count; i < dependencies.size(); i++) {
                     if (isCancelled.get()) {
@@ -422,13 +427,9 @@ public final class SelfDependencyPatcher {
                     }
 
                     DependencyDescriptor dependency = dependencies.get(i);
-
                     final String url = repository.resolveDependencyURL(dependency);
-                    ProgressFrame finalDialog = dialog;
-                    SwingUtilities.invokeLater(() -> {
-                        finalDialog.setCurrent(dependency.module);
-                        finalDialog.incrementProgress();
-                    });
+                    dialog.setCurrent(i18n("download.javafx.component", dependency.module));
+                    dialog.appendDetail("→ " + dependency.filename());
 
                     LOG.info("Downloading " + url);
 
@@ -441,6 +442,7 @@ public final class SelfDependencyPatcher {
                     try (InputStream is = connection.getInputStream();
                          OutputStream os = Files.newOutputStream(dependency.localPath())) {
 
+                        long fileBytes = 0;
                         int read;
                         while ((read = is.read(buffer, 0, buffer.length)) >= 0) {
                             if (isCancelled.get()) {
@@ -452,10 +454,12 @@ public final class SelfDependencyPatcher {
                                 throw new CancellationException();
                             }
                             os.write(buffer, 0, read);
+                            fileBytes += read;
                         }
                     }
                     verifyChecksum(dependency);
                     count++;
+                    dialog.incrementProgress();
                 }
             } catch (CancellationException e) {
                 dialog.dispose();
@@ -468,6 +472,30 @@ public final class SelfDependencyPatcher {
             }
             dialog.dispose();
             return;
+        }
+    }
+
+    /// Headless fallback — downloads without showing any UI.
+    private void downloadHeadless(List<DependencyDescriptor> dependencies, Repository repository) throws IOException {
+        Files.createDirectories(DependencyDescriptor.DEPENDENCIES_DIR_PATH);
+        for (DependencyDescriptor dep : dependencies) {
+            final String url = repository.resolveDependencyURL(dep);
+            LOG.info("Downloading " + url);
+
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setRequestProperty("User-Agent", "JMCL/" + Metadata.VERSION);
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(30000);
+            connection.setInstanceFollowRedirects(true);
+
+            try (InputStream is = connection.getInputStream();
+                 OutputStream os = Files.newOutputStream(dep.localPath())) {
+                int read;
+                while ((read = is.read(buffer, 0, buffer.length)) >= 0) {
+                    os.write(buffer, 0, read);
+                }
+            }
+            verifyChecksum(dep);
         }
     }
 
@@ -514,131 +542,6 @@ public final class SelfDependencyPatcher {
 
         PatchException(String message, Throwable cause) {
             super(message, cause);
-        }
-    }
-
-    public sealed interface ProgressFrame {
-        void setCurrent(String component);
-
-        void setProgressMaximum(int total);
-
-        void setProgress(int n);
-
-        void incrementProgress();
-
-        void setOnCancel(Runnable action);
-
-        void setOnChangeSource(Runnable action);
-
-        void setVisible(boolean visible);
-
-        void dispose();
-    }
-
-    public static final class SwingProgressFrame extends JDialog implements ProgressFrame {
-
-        private final JProgressBar progressBar;
-        private final JLabel progressText;
-        private final JButton btnChangeSource;
-        private final JButton btnCancel;
-
-        public SwingProgressFrame(String title) {
-            JPanel panel = new JPanel();
-
-            setResizable(false);
-            setTitle(title);
-            setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-            setBounds(100, 100, 500, 200);
-            setContentPane(panel);
-            setLocationRelativeTo(null);
-
-            JPanel content = new JPanel();
-            content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-            for (String note : i18n("download.javafx.notes").split("\n")) {
-                content.add(new JLabel(note));
-            }
-            content.add(new JLabel("<html><br/></html>"));
-            progressText = new JLabel(i18n("download.javafx.prepare"));
-            content.add(progressText);
-            progressBar = new JProgressBar();
-            content.add(progressBar);
-
-            final JPanel buttonBar = new JPanel();
-            btnChangeSource = new JButton(i18n("button.change_source"));
-            btnCancel = new JButton(i18n("button.cancel"));
-            buttonBar.add(btnChangeSource);
-            buttonBar.add(btnCancel);
-
-            panel.setLayout(new BorderLayout());
-            panel.setBorder(BorderFactory.createEmptyBorder(10, 5, 0, 5));
-            panel.add(content, BorderLayout.CENTER);
-            panel.add(buttonBar, BorderLayout.SOUTH);
-        }
-
-        public void setCurrent(String component) {
-            progressText.setText(i18n("download.javafx.component", component));
-        }
-
-        public void setProgressMaximum(int total) {
-            progressBar.setMaximum(total);
-        }
-
-        public void setProgress(int n) {
-            progressBar.setValue(n);
-        }
-
-        public void incrementProgress() {
-            progressBar.setValue(progressBar.getValue() + 1);
-        }
-
-        public void setOnCancel(Runnable action) {
-            btnCancel.addActionListener(e -> action.run());
-            addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(WindowEvent e) {
-                    action.run();
-                }
-            });
-        }
-
-        public void setOnChangeSource(Runnable action) {
-            btnChangeSource.addActionListener(e -> action.run());
-        }
-    }
-
-    public static final class FakeProgressFrame implements ProgressFrame {
-
-        @Override
-        public void setCurrent(String component) {
-        }
-
-        @Override
-        public void setProgressMaximum(int total) {
-        }
-
-        @Override
-        public void setProgress(int n) {
-        }
-
-        @Override
-        public void incrementProgress() {
-        }
-
-        @Override
-        public void setOnCancel(Runnable action) {
-        }
-
-        @Override
-        public void setOnChangeSource(Runnable action) {
-        }
-
-        @Override
-        public void setVisible(boolean visible) {
-        }
-
-        @Override
-        public void dispose() {
         }
     }
 }

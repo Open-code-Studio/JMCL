@@ -39,7 +39,9 @@ public final class JavaFXPlatform {
         // Windows
         ALL.put("windows-x86", new JavaFXPlatform("win-x86", legacyVersions));
         ALL.put("windows-x86_64", new JavaFXPlatform("win"));
-        ALL.put("windows-arm64", new JavaFXPlatform("win", GLAVO_GROUP_ID, "18.0.2+1-arm64"));
+        // jitpack.io Glavo repo is unavailable; fall back to official win (x64)
+        // which runs fine via Windows-on-ARM built-in x64 emulation.
+        ALL.put("windows-arm64", new JavaFXPlatform("win"));
 
         // macOS
         ALL.put("macos-x86_64", new JavaFXPlatform("mac"));

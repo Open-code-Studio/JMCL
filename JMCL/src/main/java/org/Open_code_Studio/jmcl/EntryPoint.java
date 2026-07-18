@@ -18,6 +18,7 @@
 package org.Open_code_Studio.jmcl;
 
 import org.Open_code_Studio.jmcl.util.FileSaver;
+import org.Open_code_Studio.jmcl.util.NativeLibraryManager;
 import org.Open_code_Studio.jmcl.util.SelfDependencyPatcher;
 import org.Open_code_Studio.jmcl.util.SwingUtils;
 import org.Open_code_Studio.jmcl.java.JavaRuntime;
@@ -77,6 +78,13 @@ public final class EntryPoint {
                 appClass.getMethod("setReOpenHandler", listenerClass).invoke(app, listener);
             } catch (Throwable ignored) {
             }
+        }
+
+        // Detect architecture mismatch (e.g. x86-64 JDK on ARM64 hardware)
+        // and offer to switch to native architecture before initializing JavaFX.
+        if (NativeLibraryManager.handleArchMismatchIfNeeded()) {
+            // Relaunched with native JDK — we won't reach here
+            return;
         }
 
         checkJavaFX();

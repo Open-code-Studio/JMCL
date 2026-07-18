@@ -36,7 +36,10 @@ import org.Open_code_Studio.jmcl.util.platform.OperatingSystem;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 
 import static org.Open_code_Studio.jmcl.util.i18n.I18n.i18n;
@@ -216,8 +219,28 @@ public final class InstanceManagerWindow extends Stage {
                         double wx = Double.parseDouble(bounds[0]);
                         double wy = Double.parseDouble(bounds[1]);
                         double ww = Double.parseDouble(bounds[2]);
+                        double wh = Double.parseDouble(bounds[3]);
                         double newX = wx + ww + 4;
-                        double newY = wy + 40;
+                        // Vertically center relative to game window, with 40px minimum from top
+                        double newY = Math.max(wy + 40, wy + wh / 2 - 100);
+
+                        // Keep within screen bounds
+                        javafx.stage.Screen screen = javafx.stage.Screen.getPrimary();
+                        if (getScene() != null && getScene().getWindow() != null) {
+                            screen = javafx.stage.Screen.getScreens().stream()
+                                .filter(s -> s.getBounds().contains(wx + ww / 2, wy + wh / 2))
+                                .findFirst().orElse(javafx.stage.Screen.getPrimary());
+                        }
+                        double minX = screen.getVisualBounds().getMinX();
+                        double minY = screen.getVisualBounds().getMinY();
+                        double maxX = screen.getVisualBounds().getMaxX();
+                        double maxY = screen.getVisualBounds().getMaxY();
+
+                        if (newX + EXPANDED_WIDTH > maxX) newX = wx - EXPANDED_WIDTH - 4;
+                        if (newX < minX) newX = minX + 4;
+                        if (newY + 200 > maxY) newY = maxY - 210;
+                        if (newY < minY) newY = minY + 4;
+
                         if (newX != lastX || newY != lastY) {
                             lastX = newX;
                             lastY = newY;
@@ -279,16 +302,53 @@ public final class InstanceManagerWindow extends Stage {
     }
 
     /// Returns the path to the compiled CGWindowList tracker binary.
+    ///
+    /// Priority:
+    /// 1. Inside .app bundle: Contents/MacOS/jmcl_window_tracker
+    /// 2. Extracted from JAR resources to temp directory (dev/IDE mode)
+    /// 3. On system PATH
     private static String getTrackerBinary() {
-        // Look for compiled binary next to the JAR, or use cached path
+        // 1. Inside .app bundle: Contents/app/xxx.jar -> Contents/MacOS/jmcl_window_tracker
         String jarPath = InstanceManagerWindow.class.getProtectionDomain()
                 .getCodeSource().getLocation().getPath();
-        // In .app bundle: Contents/app/xxx.jar -> Contents/MacOS/jmcl_window_tracker
-        java.io.File binary = new java.io.File(new java.io.File(jarPath).getParentFile()
+        java.io.File appBinary = new java.io.File(new java.io.File(jarPath).getParentFile()
                 .getParentFile(), "MacOS/jmcl_window_tracker");
-        if (binary.exists()) return binary.getAbsolutePath();
-        // Fallback: check project resources
+        if (appBinary.exists()) return appBinary.getAbsolutePath();
+
+        // 2. Extract from JAR resources (dev/IDE mode)
+        String extractedPath = extractTrackerFromResources();
+        if (extractedPath != null) return extractedPath;
+
+        // 3. Fallback: on system PATH
         return "jmcl_window_tracker";
+    }
+
+    /// Extracts the embedded jmcl_window_tracker binary from JAR resources to a temp file.
+    ///
+    /// @return the absolute path to the extracted binary, or null on failure.
+    private static @Nullable String extractTrackerFromResources() {
+        try {
+            String resourcePath = "/assets/macos/jmcl_window_tracker";
+            InputStream is = InstanceManagerWindow.class.getResourceAsStream(resourcePath);
+            if (is == null) return null;
+
+            // Write to a persistent temp location, reuse if already exists with correct size
+            Path tempDir = Path.of(System.getProperty("java.io.tmpdir"), "jmcl-tracker");
+            Files.createDirectories(tempDir);
+            Path extracted = tempDir.resolve("jmcl_window_tracker");
+
+            byte[] resourceBytes = is.readAllBytes();
+            is.close();
+
+            if (!Files.exists(extracted) || Files.size(extracted) != resourceBytes.length) {
+                Files.write(extracted, resourceBytes);
+                extracted.toFile().setExecutable(true, false);
+            }
+
+            return extracted.toAbsolutePath().toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /// Builds the AppleScript for finding a window by PID via System Events.
@@ -312,7 +372,7 @@ public final class InstanceManagerWindow extends Stage {
             "  try\n" +
             "    set pos to position of target\n" +
             "    set sz to size of target\n" +
-            "    return (item 1 of pos as string) & \",\" & (item 2 of pos as string) & \",\" & (item 1 of sz as string)\n" +
+            "    return (item 1 of pos as string) & \",\" & (item 2 of pos as string) & \",\" & (item 1 of sz as string) & \",\" & (item 2 of sz as string)\n" +
             "  on error\n" +
             "    return \"\"\n" +
             "  end try\n" +
@@ -328,7 +388,13 @@ public final class InstanceManagerWindow extends Stage {
             Double.parseDouble(parts[0].trim());
             Double.parseDouble(parts[1].trim());
             Double.parseDouble(parts[2].trim());
-            return new String[]{parts[0].trim(), parts[1].trim(), parts[2].trim()};
+            // 4th value (height) optional for backward compat with AppleScript which returns 3
+            if (parts.length >= 4) Double.parseDouble(parts[3].trim());
+            return new String[]{
+                parts[0].trim(), parts[1].trim(),
+                parts[2].trim(),
+                parts.length >= 4 ? parts[3].trim() : "0"
+            };
         } catch (NumberFormatException ignored) {
             return null;
         }

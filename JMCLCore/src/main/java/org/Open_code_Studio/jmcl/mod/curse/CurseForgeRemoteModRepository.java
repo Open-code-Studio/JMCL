@@ -55,7 +55,7 @@ public final class CurseForgeRemoteModRepository implements RemoteModRepository 
 
     private static <R extends HttpRequest> R withApiKey(R request) {
         if (request.getUrl().startsWith(PREFIX) && !apiKey.isEmpty()) {
-            request.header("X-API-KEY", apiKey);
+            request.header("x-api-key", apiKey);
         }
         return request;
     }

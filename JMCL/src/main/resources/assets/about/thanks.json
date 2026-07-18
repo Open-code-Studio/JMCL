@@ -35,12 +35,12 @@
     },
     "titleLocalized": "about.thanks_to.contributors",
     "subtitleLocalized": "about.thanks_to.contributors.statement",
-    "externalLink": "https://github.com/Open-code-Studio/JVM-MCL/graphs/contributors"
+    "externalLink": "https://github.com/Open-code-Studio/JMCL/graphs/contributors"
   },
   {
     "image": "/assets/img/icon.png",
     "titleLocalized": "about.thanks_to.users",
     "subtitleLocalized": "about.thanks_to.users.statement",
-    "externalLink": "https://github.com/Open-code-Studio/JVM-MCL/discussions"
+    "externalLink": "https://github.com/Open-code-Studio/JMCL/discussions"
   }
 ]

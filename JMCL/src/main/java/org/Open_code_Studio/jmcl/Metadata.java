@@ -44,7 +44,7 @@ public final class Metadata {
     public static final int MINIMUM_SUPPORTED_JAVA_VERSION = 17;
     public static final int RECOMMENDED_JAVA_VERSION = 21;
 
-    public static final String NEW_REPO_URL = "https://github.com/Open-code-Studio/JVM-MCL";
+    public static final String NEW_REPO_URL = "https://github.com/Open-code-Studio/JMCL";
     public static final String ORIGINAL_REPO_URL = "https://github.com/Open-code-Studio/JMCL";
     public static final String PUBLISH_URL = NEW_REPO_URL;
     public static final String DOWNLOAD_URL = NEW_REPO_URL + "/releases";
